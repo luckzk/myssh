@@ -93,7 +93,7 @@ func BridgeSSH(ws *websocket.Conn, client *ssh.Client, cols, rows int, hooks Hoo
 		_, _ = stdin.Write([]byte(hooks.Init))
 	}
 
-	done := make(chan error, 2)
+	done := make(chan error, 4)
 
 	writeFrame := func(typ int, content string) error {
 		return ws.WriteMessage(websocket.TextMessage, []byte(encodeFrame(typ, content)))

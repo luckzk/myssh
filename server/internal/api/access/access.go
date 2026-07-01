@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/dushixiang/next-terminal-clone/server/internal/audit"
 	"github.com/dushixiang/next-terminal-clone/server/internal/config"
@@ -162,8 +163,15 @@ func (h *Handler) terminal(c echo.Context) error {
 	group := h.getOrCreateGroup(sess.ID)
 	defer func() { group.closeAll(); h.removeGroup(sess.ID) }()
 
-	// 旁路审计：录像 + 命令解析（S3-3）+ 观战广播
-	rec := h.recorder.Start(sess.ID, cols, rows)
+		// 旁路审计：录像 + 命令解析（S3-3）+ 观战广播。重连时追加写同一 cast。
+		baseOffset := 0.0
+		if sess.Status == "reconnecting" && sess.ConnectedAt > 0 {
+			baseOffset = float64(model.NowMillis()-sess.ConnectedAt) / 1000
+		}
+		rec := h.recorder.Start(sess.ID, cols, rows)
+		if sess.RecordingPath != "" {
+			rec = h.recorder.Resume(sess.ID, cols, rows, baseOffset)
+		}
 	cmdParser := audit.NewCommandParser(h.store, &sess)
 	initCmd := ""
 	if a.DefaultPath != "" {
@@ -207,10 +215,23 @@ func (h *Handler) markReconnecting(sess *model.ConnSession, recordingPath string
 		"recording_path":  recordingPath,
 		"reconnect_until": until,
 	})
+	go h.expireReconnect(sess.ID, until)
 }
 
 func (h *Handler) shouldWaitReconnect(err error) bool {
 	return err != nil && !errors.Is(err, gateway.ErrClientExit)
+}
+
+func (h *Handler) expireReconnect(sessionID string, until int64) {
+	// 宽限期结束后若仍未接回，正式转离线，避免 reconnecting 残留。
+	sleepMs := until - model.NowMillis() + 250
+	if sleepMs > 0 {
+		time.Sleep(time.Duration(sleepMs) * time.Millisecond)
+	}
+	now := model.NowMillis()
+	h.store.DB.Model(&model.ConnSession{}).
+		Where("id = ? AND status = ? AND reconnect_until <= ?", sessionID, "reconnecting", now).
+		Updates(map[string]any{"status": "disconnected", "disconnected_at": now, "reconnect_until": 0})
 }
 
 // resolveTarget 把资产解析为可拨号目标（内联或引用凭证，解密）。

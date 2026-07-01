@@ -21,10 +21,11 @@ func NewRecorder(dir string) *Recorder {
 
 // Recording 单次会话录像，asciinema v2 格式（首行 header，其后逐帧 [偏移秒,"o",数据]）。
 type Recording struct {
-	mu    sync.Mutex
-	f     *os.File
-	path  string
-	start time.Time
+	mu         sync.Mutex
+	f          *os.File
+	path       string
+	start      time.Time
+	baseOffset float64
 }
 
 // Start 创建录像文件并写入 header。
@@ -43,6 +44,20 @@ func (r *Recorder) Start(sessionID string, cols, rows int) *Recording {
 	return &Recording{f: f, path: path, start: time.Now()}
 }
 
+// Resume 继续写入同一会话录像。用于网络抖动后的同 sessionId 重连；
+// offset 按会话连接时间延续，避免覆盖已有 cast 内容。
+func (r *Recorder) Resume(sessionID string, cols, rows int, baseOffset float64) *Recording {
+	path := filepath.Join(r.dir, sessionID+".cast")
+	if _, err := os.Stat(path); err != nil {
+		return r.Start(sessionID, cols, rows)
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o640)
+	if err != nil {
+		return r.Start(sessionID, cols, rows)
+	}
+	return &Recording{f: f, path: path, start: time.Now(), baseOffset: baseOffset}
+}
+
 // WriteOutput 追加一帧终端输出。
 func (rec *Recording) WriteOutput(data []byte) {
 	if rec.f == nil {
@@ -50,7 +65,7 @@ func (rec *Recording) WriteOutput(data []byte) {
 	}
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
-	offset := time.Since(rec.start).Seconds()
+	offset := rec.baseOffset + time.Since(rec.start).Seconds()
 	frame, _ := json.Marshal([]any{offset, "o", string(data)})
 	_, _ = rec.f.Write(append(frame, '\n'))
 }

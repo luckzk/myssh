@@ -132,6 +132,10 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
     let reconnectAttempts = 0
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
     const token = localStorage.getItem(TOKEN_KEY) || ''
+    if (!viewer) {
+      term.onData((d) => wsRef.current?.send(enc(MsgData, d)))
+      term.onResize(({ cols, rows }) => wsRef.current?.send(enc(MsgResize, `${cols},${rows}`)))
+    }
 
     const stopPing = () => {
       clearInterval(pingTimer)
@@ -148,8 +152,6 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
         setStatus('connected')
         reconnectAttempts = 0
         if (!isViewer) {
-          term.onData((d) => ws?.send(enc(MsgData, d)))
-          term.onResize(({ cols, rows }) => ws?.send(enc(MsgResize, `${cols},${rows}`)))
           pingTimer = setInterval(() => ws?.send(enc(MsgPing, Date.now().toString())), 3000)
         }
       }
