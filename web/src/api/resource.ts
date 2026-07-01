@@ -158,3 +158,22 @@ export const hostKeyApi = {
   trust: (id: string) => api.post(`/admin/host-keys/${id}/trust`),
   revoke: (id: string) => api.post(`/admin/host-keys/${id}/revoke`),
 }
+
+export interface SecurityCheck {
+  key: string
+  title: string
+  status: 'ok' | 'warning' | 'danger'
+  message: string
+  remediation: string
+}
+
+export interface SecuritySummary {
+  env: string
+  blocking: boolean
+  checks: SecurityCheck[]
+  updatedAt: number
+}
+
+export const securityApi = {
+  checks: (): Promise<SecuritySummary> => api.get('/admin/security/checks'),
+}

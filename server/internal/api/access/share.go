@@ -1,6 +1,7 @@
 package access
 
 import (
+	"net/url"
 	"sync"
 
 	"github.com/dushixiang/next-terminal-clone/server/internal/gateway"
@@ -86,6 +87,28 @@ func (h *Handler) shareSession(c echo.Context) error {
 	h.shareMu.Unlock()
 	url := "/term/" + sess.AssetID + "?sessionId=" + sess.ID + "&join=" + token
 	return web.OK(c, map[string]any{"token": token, "url": url})
+}
+
+// watchSession 允许管理员从在线会话列表生成只读观战链接。
+func (h *Handler) watchSession(c echo.Context) error {
+	u := web.CurrentUser(c)
+	if u == nil || u.Type != "admin" {
+		return web.Fail(c, 200, 403, "仅管理员可观战会话")
+	}
+	id := c.Param("id")
+	var sess model.ConnSession
+	if err := h.store.DB.First(&sess, "id = ?", id).Error; err != nil {
+		return web.Fail(c, 200, 404, "会话不存在")
+	}
+	if sess.Status != "connected" {
+		return web.Fail(c, 200, 400, "会话未在线，无法观战")
+	}
+	token := uuid.NewString()
+	h.shareMu.Lock()
+	h.shareTokens[token] = sess.ID
+	h.shareMu.Unlock()
+	watchURL := "/term/" + url.PathEscape(sess.AssetID) + "?sessionId=" + url.QueryEscape(sess.ID) + "&join=" + url.QueryEscape(token) + "&name=" + url.QueryEscape(sess.AssetName)
+	return web.OK(c, map[string]any{"token": token, "url": watchURL})
 }
 
 // joinViewer 以只读观战身份接入既有会话（不 DialSSH）。

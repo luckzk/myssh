@@ -1,11 +1,29 @@
-import { useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fsApi, type FileInfo } from '../api/filesystem'
 import { Drawer, Spinner, Empty, confirm, toast } from '../ui'
 import PermissionDialog from './access/PermissionDialog'
 
 const fmtSize = (n: number) =>
   n > 1024 * 1024 ? `${(n / 1048576).toFixed(1)}M` : n > 1024 ? `${(n / 1024).toFixed(1)}K` : `${n}B`
+
+const BOOKMARK_KEY = 'nt-sftp-bookmarks'
+const isTextEditable = (name: string) =>
+  /\.(txt|log|conf|cfg|ini|json|ya?ml|xml|md|sh|bash|zsh|sql|env|properties|go|ts|tsx|js|jsx|css|html|py|rb|php|java|c|cc|cpp|h|hpp)$/i.test(name)
+
+function loadBookmarks(): string[] {
+  try {
+    const raw = localStorage.getItem(BOOKMARK_KEY)
+    const arr = raw ? JSON.parse(raw) : []
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function saveBookmarks(items: string[]) {
+  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(items))
+}
 
 // 单个文件/目录节点：目录可懒加载展开（每个目录独立 useQuery 缓存）。
 function FsNode({
@@ -17,6 +35,7 @@ function FsNode({
   onChanged,
   onCtx,
   onPreview,
+  onEdit,
 }: {
   sid: string
   file: FileInfo
@@ -26,6 +45,7 @@ function FsNode({
   onChanged: () => void
   onCtx: (file: FileInfo, e: React.MouseEvent) => void
   onPreview: (file: FileInfo) => void
+  onEdit: (file: FileInfo) => void
 }) {
   const [open, setOpen] = useState(false)
   const isDir = file.isDir
@@ -86,6 +106,11 @@ function FsNode({
             <button className="btn btn-link p-0 text-info" title="预览" onClick={(e) => { e.stopPropagation(); onPreview(file) }}>
               <i className="bx bx-show" />
             </button>
+            {isTextEditable(file.name) && (
+              <button className="btn btn-link p-0 text-warning" title="编辑" onClick={(e) => { e.stopPropagation(); onEdit(file) }}>
+                <i className="bx bx-edit" />
+              </button>
+            )}
             <a href={fsApi.downloadUrl(sid, file.path)} target="_blank" rel="noreferrer" title="下载" onClick={(e) => e.stopPropagation()}>
               <i className="bx bx-download" />
             </a>
@@ -103,7 +128,7 @@ function FsNode({
             </div>
           ) : (
             (children ?? []).map((c) => (
-              <FsNode key={c.path} sid={sid} file={c} depth={depth + 1} selectedDir={selectedDir} onSelectDir={onSelectDir} onChanged={onChanged} onCtx={onCtx} onPreview={onPreview} />
+              <FsNode key={c.path} sid={sid} file={c} depth={depth + 1} selectedDir={selectedDir} onSelectDir={onSelectDir} onChanged={onChanged} onCtx={onCtx} onPreview={onPreview} onEdit={onEdit} />
             ))
           )}
         </div>
@@ -121,8 +146,13 @@ export default function FileManager({ sessionId, open, onClose }: { sessionId: s
   const [menu, setMenu] = useState<{ x: number; y: number; file: FileInfo } | null>(null)
   const [permFile, setPermFile] = useState<FileInfo | null>(null)
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null)
+  const [editFile, setEditFile] = useState<FileInfo | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [bookmarks, setBookmarks] = useState<string[]>(() => loadBookmarks())
   const [queue, setQueue] = useState<{ id: string; name: string; status: 'queued' | 'uploading' | 'done' | 'error'; error?: string }[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => saveBookmarks(bookmarks), [bookmarks])
 
   const onCtx = (file: FileInfo, e: React.MouseEvent) => setMenu({ x: e.clientX, y: e.clientY, file })
 
@@ -142,8 +172,41 @@ export default function FileManager({ sessionId, open, onClose }: { sessionId: s
     queryFn: () => fsApi.ls(sessionId, '.'),
     enabled: open && !!sessionId,
   })
+  const { data: selectedEntries, isLoading: selectedLoading } = useQuery({
+    queryKey: ['fs', sessionId, selectedDir],
+    queryFn: () => fsApi.ls(sessionId, selectedDir),
+    enabled: open && !!sessionId && selectedDir !== '.',
+  })
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['fs', sessionId] })
+
+  const openEditor = async (file: FileInfo) => {
+    if (!isTextEditable(file.name) && !(await confirm('该文件类型不在常见文本列表中，仍要按文本方式编辑？'))) return
+    try {
+      const res = await fsApi.read(sessionId, file.path)
+      setEditContent(res.content)
+      setEditFile(file)
+    } catch (err: any) {
+      toast.error(err.message)
+    }
+  }
+
+  const saveEdit = useMutation({
+    mutationFn: () => fsApi.write(sessionId, editFile!.path, editContent),
+    onSuccess: () => {
+      toast.success('已保存远程文件')
+      refresh()
+      setEditFile(null)
+    },
+    onError: (err: any) => toast.error(err.message),
+  })
+
+  const addBookmark = (dir: string) => {
+    setBookmarks((cur) => [dir, ...cur.filter((x) => x !== dir)].slice(0, 12))
+    toast.success('已加入书签')
+  }
+
+  const removeBookmark = (dir: string) => setBookmarks((cur) => cur.filter((x) => x !== dir))
 
   const onFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -215,7 +278,24 @@ export default function FileManager({ sessionId, open, onClose }: { sessionId: s
       <div className="text-muted mb-2" style={{ fontSize: 12 }}>
         <i className="bx bx-folder-open me-1" />
         当前目录：<code className="text-info">{selectedDir}</code>
+        <button className="btn btn-sm btn-link p-0 ms-2 text-warning" onClick={() => addBookmark(selectedDir)}>
+          <i className="bx bx-bookmark-plus" /> 加书签
+        </button>
       </div>
+      {bookmarks.length > 0 && (
+        <div className="mb-2 p-2 rounded" style={{ background: '#2B2D30' }}>
+          <div className="text-light mb-1" style={{ fontSize: 12 }}>目录书签</div>
+          <div className="d-flex flex-wrap gap-1">
+            {bookmarks.map((dir) => (
+              <button key={dir} className="btn btn-sm btn-dark border-secondary d-inline-flex align-items-center gap-1" onClick={() => setSelectedDir(dir)}>
+                <i className="bx bx-bookmark" />
+                <span className="text-truncate" style={{ maxWidth: 150 }}>{dir}</span>
+                <i className="bx bx-x" onClick={(e) => { e.stopPropagation(); removeBookmark(dir) }} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {creating && (
         <div className="d-flex align-items-center gap-2 mb-2 p-2 rounded" style={{ background: '#2B2D30' }}>
@@ -260,8 +340,22 @@ export default function FileManager({ sessionId, open, onClose }: { sessionId: s
       ) : (
         <div>
           {roots.map((f) => (
-            <FsNode key={f.path} sid={sessionId} file={f} depth={0} selectedDir={selectedDir} onSelectDir={setSelectedDir} onChanged={refresh} onCtx={onCtx} onPreview={setPreviewFile} />
+            <FsNode key={f.path} sid={sessionId} file={f} depth={0} selectedDir={selectedDir} onSelectDir={setSelectedDir} onChanged={refresh} onCtx={onCtx} onPreview={setPreviewFile} onEdit={openEditor} />
           ))}
+        </div>
+      )}
+      {selectedDir !== '.' && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #34363a' }}>
+          <div className="text-light mb-2" style={{ fontSize: 12 }}>当前目录内容</div>
+          {selectedLoading ? (
+            <span className="spinner-border spinner-border-sm text-secondary" />
+          ) : !selectedEntries?.length ? (
+            <Empty text="空目录" />
+          ) : (
+            selectedEntries.map((f) => (
+              <FsNode key={`selected-${f.path}`} sid={sessionId} file={f} depth={0} selectedDir={selectedDir} onSelectDir={setSelectedDir} onChanged={refresh} onCtx={onCtx} onPreview={setPreviewFile} onEdit={openEditor} />
+            ))
+          )}
         </div>
       )}
 
@@ -280,6 +374,9 @@ export default function FileManager({ sessionId, open, onClose }: { sessionId: s
               <>
                 <button className="ctx-item" onClick={() => { setPreviewFile(menu.file); setMenu(null) }}>
                   <i className="bx bx-show me-2" />预览
+                </button>
+                <button className="ctx-item" onClick={() => { openEditor(menu.file); setMenu(null) }}>
+                  <i className="bx bx-edit me-2" />编辑
                 </button>
                 <a className="ctx-item d-block text-decoration-none" href={fsApi.downloadUrl(sessionId, menu.file.path)} target="_blank" rel="noreferrer" onClick={() => setMenu(null)}>
                   <i className="bx bx-download me-2" />下载
@@ -315,6 +412,39 @@ export default function FileManager({ sessionId, open, onClose }: { sessionId: s
                 <iframe title={previewFile.name} src={fsApi.previewUrl(sessionId, previewFile.path)} style={{ width: '100%', height: '100%', border: 0, background: '#111', color: '#fff' }} />
               )}
             </div>
+          </div>
+        </>
+      )}
+      {editFile && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.45)' }} onClick={() => setEditFile(null)} />
+          <div className="rounded shadow" style={{ position: 'fixed', inset: '7vh 7vw', zIndex: 1101, background: '#1E1F22', border: '1px solid #34363a', display: 'flex', flexDirection: 'column' }}>
+            <div className="d-flex align-items-center px-3" style={{ height: 44, borderBottom: '1px solid #34363a' }}>
+              <i className="bx bx-edit text-warning me-2" />
+              <span className="text-light text-truncate">{editFile.path}</span>
+              <button className="btn btn-sm btn-primary ms-auto me-2" disabled={saveEdit.isPending} onClick={() => saveEdit.mutate()}>
+                <i className="bx bx-save" /> 保存
+              </button>
+              <button className="term-tool" title="关闭" onClick={() => setEditFile(null)}><i className="bx bx-x" /></button>
+            </div>
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              spellCheck={false}
+              style={{
+                flex: 1,
+                width: '100%',
+                resize: 'none',
+                border: 0,
+                outline: 'none',
+                background: '#111316',
+                color: '#e5e7eb',
+                padding: 14,
+                fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, monospace',
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}
+            />
           </div>
         </>
       )}

@@ -71,6 +71,7 @@ func NewRouter(s *store.Store, cfg config.Config) *echo.Echo {
 
 	// 管理端：/api/admin/*，鉴权 + 演示模式写拦截
 	adminG := apiG.Group("/admin", web.AuthToken(s), web.DemoGuard(cfg.DemoMode))
+	accessH.RegisterAdmin(adminG)
 	resource.NewCredentialHandler(s, cfg, cipher).Register(adminG.Group("/credentials"))
 	assetH := resource.NewAssetHandler(s, cipher)
 	assetH.SecurityToken = cfg.SecurityToken
@@ -78,10 +79,11 @@ func NewRouter(s *store.Store, cfg config.Config) *echo.Echo {
 	assetH.Register(adminG.Group("/assets"))
 	assetH.RegisterGroups(adminG.Group("/assets")) // 资产分组树（复用 asset_group.go）
 	// guacd 网关：选择/检测/自动安装
-		resource.NewGuacdHandler(s, cipher, sshOptions).Register(adminG.Group("/guacd"))
-		resource.NewHostKeyHandler(s).Register(adminG.Group("/host-keys"))
+	resource.NewGuacdHandler(s, cipher, sshOptions).Register(adminG.Group("/guacd"))
+	resource.NewHostKeyHandler(s).Register(adminG.Group("/host-keys"))
 	// 站点信息设置
 	resource.NewSiteHandler(s).Register(adminG)
+	resource.NewSecurityHandler(s, cfg).Register(adminG)
 	sessionH := resource.NewSessionHandler(s, registry)
 	sessionH.Register(adminG.Group("/sessions"))
 	sessionH.RegisterCommands(adminG.Group("/session-commands"))

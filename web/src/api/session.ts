@@ -41,6 +41,7 @@ export const sessionApi = {
     api.get(`/admin/sessions/paging?${qs(p)}`),
   get: (id: string): Promise<Session> => api.get(`/admin/sessions/${id}`),
   disconnect: (id: string) => api.post(`/admin/sessions/${id}/disconnect`),
+  watch: (id: string): Promise<{ token: string; url: string }> => api.get(`/admin/sessions/${id}/watch`),
   clear: () => api.post('/admin/sessions/clear'),
   // 录像 URL 给 asciinema-player 直接消费
   recordingUrl: (id: string) => `/api/admin/sessions/${id}/recording`,

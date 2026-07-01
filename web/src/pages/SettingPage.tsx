@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader, Card, Empty, toast, DataTable, Badge, confirm, type Column } from '../ui'
-import { hostKeyApi, siteApi, type SiteSettings, type TrustedHostKey } from '../api/resource'
+import { hostKeyApi, securityApi, siteApi, type SiteSettings, type TrustedHostKey } from '../api/resource'
 import TermPrefsForm from './access/TermPrefsForm'
 
 // 系统设置：Ynex「Vertical Tab Style-1」(nav-pills tab-style-7) 左竖向标签 + 右内容。
@@ -47,6 +47,10 @@ function SitePanel() {
 
 function SecurityPanel() {
   const qc = useQueryClient()
+  const checks = useQuery({
+    queryKey: ['security-checks'],
+    queryFn: securityApi.checks,
+  })
   const { data, isLoading } = useQuery({
     queryKey: ['host-keys'],
     queryFn: () => hostKeyApi.paging({ pageIndex: 1, pageSize: 100 }),
@@ -87,6 +91,40 @@ function SecurityPanel() {
   ]
   return (
     <div>
+      <div className="mb-4">
+        <div className="d-flex align-items-center justify-content-between mb-2">
+          <div>
+            <h6 className="fw-semibold mb-1">生产安全体检</h6>
+            <p className="text-muted mb-0" style={{ fontSize: 13 }}>
+              当前环境：{checks.data?.env ?? '-'}；生产模式会阻断危险默认配置。
+            </p>
+          </div>
+          <button className="btn btn-sm btn-light" onClick={() => qc.invalidateQueries({ queryKey: ['security-checks'] })}>
+            <i className="bx bx-refresh" /> 刷新
+          </button>
+        </div>
+        <div className="row g-2">
+          {(checks.data?.checks ?? []).map((item) => (
+            <div className="col-md-6" key={item.key}>
+              <div className="border rounded p-3 h-100" style={{ background: '#fff' }}>
+                <div className="d-flex align-items-start gap-2">
+                  <Badge color={item.status === 'ok' ? 'success' : item.status === 'warning' ? 'warning' : 'danger'}>
+                    {item.status === 'ok' ? '通过' : item.status === 'warning' ? '注意' : '风险'}
+                  </Badge>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="fw-semibold">{item.title}</div>
+                    <div className="text-muted mt-1" style={{ fontSize: 13 }}>{item.message}</div>
+                    {item.status !== 'ok' && <div className="text-danger mt-2" style={{ fontSize: 12 }}>{item.remediation}</div>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {checks.isLoading && <div className="col-12 text-muted">正在检查...</div>}
+        </div>
+      </div>
+
+      <h6 className="fw-semibold mb-2">SSH HostKey 信任</h6>
       <p className="text-muted" style={{ fontSize: 13 }}>
         SSH HostKey 默认使用 TOFU：首次连接自动信任，后续指纹变化会阻断连接并在这里进入待确认状态。
       </p>

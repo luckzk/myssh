@@ -26,6 +26,10 @@ const MsgPing = 9
 const MsgErrorT = 0
 
 const enc = (type: number, content = '') => `${type}${content}`
+const BROADCAST_EVENT = 'nt-terminal-broadcast'
+const sendFrame = (ws: WebSocket | null, type: number, content = '') => {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(enc(type, content))
+}
 const dec = (s: string): [number, string] => {
   if (s === '') return [MsgData, '']
   const t = parseInt(s[0], 10)
@@ -133,9 +137,17 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
     const token = localStorage.getItem(TOKEN_KEY) || ''
     if (!viewer) {
-      term.onData((d) => wsRef.current?.send(enc(MsgData, d)))
-      term.onResize(({ cols, rows }) => wsRef.current?.send(enc(MsgResize, `${cols},${rows}`)))
+      term.onData((d) => sendFrame(wsRef.current, MsgData, d))
+      term.onResize(({ cols, rows }) => sendFrame(wsRef.current, MsgResize, `${cols},${rows}`))
     }
+    const onBroadcast = (e: Event) => {
+      if (viewer) return
+      const text = (e as CustomEvent<string>).detail
+      if (typeof text === 'string' && text) {
+        sendFrame(wsRef.current, MsgData, text)
+      }
+    }
+    window.addEventListener(BROADCAST_EVENT, onBroadcast)
 
     const stopPing = () => {
       clearInterval(pingTimer)
@@ -152,7 +164,7 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
         setStatus('connected')
         reconnectAttempts = 0
         if (!isViewer) {
-          pingTimer = setInterval(() => ws?.send(enc(MsgPing, Date.now().toString())), 3000)
+          pingTimer = setInterval(() => sendFrame(ws ?? null, MsgPing, Date.now().toString()), 3000)
         }
       }
       ws.onmessage = (e) => {
@@ -167,7 +179,7 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
             break
           }
           case MsgKeepAlive:
-            ws?.send(enc(MsgPing, Date.now().toString()))
+            sendFrame(ws ?? null, MsgPing, Date.now().toString())
             break
           case MsgErrorT:
             term.writeln(`\r\n\x1b[31m${content}\x1b[0m`)
@@ -218,7 +230,8 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
       clearTimeout(reconnectTimer)
       stopPing()
       window.removeEventListener('resize', onResize)
-      try { ws?.send(enc(MsgExit, 'close')) } catch {}
+      window.removeEventListener(BROADCAST_EVENT, onBroadcast)
+      try { sendFrame(ws, MsgExit, 'close') } catch {}
       ws?.close()
       term.dispose()
       termRef.current = null
@@ -265,21 +278,21 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
   }
   const close = () => (onClose ? onClose() : window.close())
   const closeSession = () => {
-    try { wsRef.current?.send(enc(MsgExit, 'close')) } catch {}
+    try { sendFrame(wsRef.current, MsgExit, 'close') } catch {}
     close()
   }
   const useSnippet = (content: string) => {
     const ws = wsRef.current
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(enc(MsgData, content))
-      ws.send(enc(MsgData, '\r'))
+      sendFrame(ws, MsgData, content)
+      sendFrame(ws, MsgData, '\r')
     }
   }
   const onContextMenu = (e: React.MouseEvent) => {
     if (!settingsRef.current.rightClickPaste || viewer) return
     e.preventDefault()
     navigator.clipboard?.readText().then((t) => {
-      if (t) wsRef.current?.send(enc(MsgData, t))
+      if (t) sendFrame(wsRef.current, MsgData, t)
     }).catch(() => {})
   }
 

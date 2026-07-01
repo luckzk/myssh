@@ -22,6 +22,14 @@ export default function OnlineSessionPage() {
     },
     onError: (e: any) => toast.error(e.message),
   })
+  const watch = useMutation({
+    mutationFn: (id: string) => sessionApi.watch(id),
+    onSuccess: (res) => {
+      window.open(res.url, '_blank', 'noopener,noreferrer')
+      toast.success('已打开只读观战')
+    },
+    onError: (e: any) => toast.error(e.message),
+  })
 
   const fmtDur = (a: number) => {
     if (!a) return '-'
@@ -46,9 +54,14 @@ export default function OnlineSessionPage() {
       title: '操作',
       key: '__act',
       render: (_, rec) => (
-        <button className="btn btn-sm btn-danger-light" onClick={() => onKill(rec.id)}>
-          <i className="bx bx-power-off" /> 强制下线
-        </button>
+        <div className="d-flex gap-1">
+          <button className="btn btn-sm btn-primary-light" onClick={() => watch.mutate(rec.id)}>
+            <i className="bx bx-show" /> 观战
+          </button>
+          <button className="btn btn-sm btn-danger-light" onClick={() => onKill(rec.id)}>
+            <i className="bx bx-power-off" /> 强制下线
+          </button>
+        </div>
       ),
     },
   ]

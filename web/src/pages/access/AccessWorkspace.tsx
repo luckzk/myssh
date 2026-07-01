@@ -4,6 +4,8 @@ import AssetTree from './AssetTree'
 import TerminalView from './TerminalView'
 import GraphicsView from './GraphicsView'
 import type { Asset } from '../../api/resource'
+import BroadcastModal from './BroadcastModal'
+import { toast } from '../../ui'
 
 interface Tab {
   id: string // 唯一（每次打开新生成）→ 同一资产可重复打开多个 tab
@@ -16,6 +18,7 @@ const SS_KEY = 'nt-workspace-tabs'
 const PROTO_ICON: Record<string, string> = { ssh: 'bx-terminal', rdp: 'bx-windows', vnc: 'bx-desktop', telnet: 'bx-chip' }
 const isGraphical = (p: string) => p === 'rdp' || p === 'vnc'
 const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
+const BROADCAST_EVENT = 'nt-terminal-broadcast'
 
 function restore(): Tab[] {
   try {
@@ -31,6 +34,8 @@ export default function AccessWorkspace() {
   const [sp] = useSearchParams()
   const [tabs, setTabs] = useState<Tab[]>([])
   const [active, setActive] = useState('')
+  const [layout, setLayout] = useState<'single' | 'two' | 'grid'>('single')
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
 
   // 初始化：恢复 sessionStorage + （首次）合并 ?open=；随后清掉 query 避免刷新重复打开
   useEffect(() => {
@@ -61,6 +66,14 @@ export default function AccessWorkspace() {
   }
 
   const activeAssetId = tabs.find((t) => t.id === active)?.assetId
+  const visibleTabs = (() => {
+    if (layout === 'single') return tabs.filter((t) => t.id === active)
+    const limit = layout === 'two' ? 2 : 4
+    const activeTab = tabs.find((t) => t.id === active)
+    const others = tabs.filter((t) => t.id !== active)
+    return activeTab ? [activeTab, ...others].slice(0, limit) : tabs.slice(0, limit)
+  })()
+  const sshCount = tabs.filter((t) => !isGraphical(t.protocol)).length
 
   // 同一资产多 tab 时，标签加序号区分
   const labelOf = (t: Tab) => {
@@ -76,6 +89,11 @@ export default function AccessWorkspace() {
       if (active === id) setActive(next[Math.max(0, idx - 1)]?.id || '')
       return next
     })
+  }
+
+  const broadcast = (text: string) => {
+    window.dispatchEvent(new CustomEvent(BROADCAST_EVENT, { detail: text }))
+    toast.success(`已广播到 ${sshCount} 个 SSH 终端`)
   }
 
   return (
@@ -112,21 +130,58 @@ export default function AccessWorkspace() {
               />
             </div>
           ))}
+          <div className="ms-auto d-flex align-items-center gap-1 px-2 flex-shrink-0" style={{ position: 'sticky', right: 0, background: '#191A1C' }}>
+            <button className={`term-tool${layout === 'single' ? ' term-tool-active' : ''}`} title="单窗" onClick={() => setLayout('single')}>
+              <i className="bx bx-rectangle" />
+            </button>
+            <button className={`term-tool${layout === 'two' ? ' term-tool-active' : ''}`} title="双分屏" onClick={() => setLayout('two')} disabled={tabs.length < 2}>
+              <i className="bx bx-columns" />
+            </button>
+            <button className={`term-tool${layout === 'grid' ? ' term-tool-active' : ''}`} title="四宫格" onClick={() => setLayout('grid')} disabled={tabs.length < 2}>
+              <i className="bx bx-grid-alt" />
+            </button>
+            <button className="term-tool" title="广播输入" onClick={() => setBroadcastOpen(true)} disabled={sshCount === 0}>
+              <i className="bx bx-broadcast" />
+            </button>
+          </div>
         </div>
 
-        {/* Tab 内容：全部渲染，仅 active 可见（保活） */}
-        <div style={{ flexGrow: 1, minHeight: 0, position: 'relative' }}>
+        {/* Tab 内容：全部渲染，布局内可分屏；隐藏 tab 仍保活。 */}
+        <div
+          style={{
+            flexGrow: 1,
+            minHeight: 0,
+            position: 'relative',
+            display: 'grid',
+            gridTemplateColumns: layout === 'single' ? '1fr' : layout === 'two' ? 'repeat(2, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))',
+            gridTemplateRows: layout === 'grid' ? 'repeat(2, minmax(0, 1fr))' : '1fr',
+            gap: layout === 'single' ? 0 : 1,
+            background: '#34363a',
+          }}
+        >
           {tabs.map((t) => (
-            <div key={t.id} style={{ position: 'absolute', inset: 0, display: active === t.id ? 'block' : 'none' }}>
+            <div
+              key={t.id}
+              style={{
+                minWidth: 0,
+                minHeight: 0,
+                position: visibleTabs.some((x) => x.id === t.id) ? 'relative' : 'absolute',
+                inset: visibleTabs.some((x) => x.id === t.id) ? undefined : 0,
+                display: visibleTabs.some((x) => x.id === t.id) ? 'block' : 'none',
+                outline: active === t.id && layout !== 'single' ? '1px solid #845adf' : undefined,
+              }}
+              onClick={() => setActive(t.id)}
+            >
               {isGraphical(t.protocol) ? (
-                <GraphicsView assetId={t.assetId} name={t.name} active={active === t.id} onClose={() => closeTab(t.id)} />
+                <GraphicsView assetId={t.assetId} name={t.name} active={visibleTabs.some((x) => x.id === t.id)} onClose={() => closeTab(t.id)} />
               ) : (
-                <TerminalView assetId={t.assetId} name={t.name} active={active === t.id} onClose={() => closeTab(t.id)} />
+                <TerminalView assetId={t.assetId} name={t.name} active={visibleTabs.some((x) => x.id === t.id)} onClose={() => closeTab(t.id)} />
               )}
             </div>
           ))}
         </div>
       </div>
+      <BroadcastModal open={broadcastOpen} count={sshCount} onClose={() => setBroadcastOpen(false)} onSend={broadcast} />
     </div>
   )
 }

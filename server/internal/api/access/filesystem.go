@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 
 	"github.com/dushixiang/next-terminal-clone/server/internal/gateway"
 	"github.com/dushixiang/next-terminal-clone/server/internal/model"
@@ -26,8 +27,68 @@ func (h *Handler) RegisterFilesystem(g *echo.Group) {
 	g.POST("/:sid/upload", h.fsUpload)
 	g.GET("/:sid/download", h.fsDownload)
 	g.GET("/:sid/preview", h.fsPreview)
+	g.GET("/:sid/read", h.fsRead)
+	g.POST("/:sid/write", h.fsWrite)
 	g.GET("/:sid/stat", h.fsStat)
 	g.POST("/:sid/chmod", h.fsChmod)
+}
+
+type fsWriteReq struct {
+	Filename string `json:"filename"`
+	Content  string `json:"content"`
+}
+
+func (h *Handler) fsRead(c echo.Context) error {
+	conn, sess, err := h.connForSession(c.Param("sid"))
+	if err != nil {
+		return web.Fail(c, 200, 500, err.Error())
+	}
+	name := c.QueryParam("filename")
+	f, err := conn.Sftp.Open(name)
+	if err != nil {
+		return web.Fail(c, 200, 404, err.Error())
+	}
+	defer f.Close()
+	if fi, e := f.Stat(); e == nil && fi.Size() > 2*1024*1024 {
+		return web.Fail(c, 200, 400, "编辑文件不能超过 2MB")
+	}
+	data, err := io.ReadAll(io.LimitReader(f, 2*1024*1024+1))
+	if err != nil {
+		return web.Fail(c, 200, 500, err.Error())
+	}
+	if len(data) > 2*1024*1024 {
+		return web.Fail(c, 200, 400, "编辑文件不能超过 2MB")
+	}
+	h.auditFS(sess, "read", name, int64(len(data)))
+	return web.OK(c, map[string]any{"filename": name, "content": string(data), "size": len(data)})
+}
+
+func (h *Handler) fsWrite(c echo.Context) error {
+	conn, sess, err := h.connForSession(c.Param("sid"))
+	if err != nil {
+		return web.Fail(c, 200, 500, err.Error())
+	}
+	var req fsWriteReq
+	if err := c.Bind(&req); err != nil || req.Filename == "" {
+		return web.Fail(c, 200, 400, "请求参数错误")
+	}
+	if len(req.Content) > 2*1024*1024 {
+		return web.Fail(c, 200, 400, "编辑文件不能超过 2MB")
+	}
+	f, err := conn.Sftp.Create(req.Filename)
+	if err != nil {
+		return web.Fail(c, 200, 500, err.Error())
+	}
+	n64, werr := io.Copy(f, strings.NewReader(req.Content))
+	cerr := f.Close()
+	if werr != nil {
+		return web.Fail(c, 200, 500, werr.Error())
+	}
+	if cerr != nil {
+		return web.Fail(c, 200, 500, cerr.Error())
+	}
+	h.auditFS(sess, "edit", req.Filename, n64)
+	return web.OK(c, map[string]any{"status": "ok", "size": n64})
 }
 
 func (h *Handler) fsPreview(c echo.Context) error {

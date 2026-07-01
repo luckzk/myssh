@@ -23,10 +23,10 @@ import (
 const reconnectGraceMs int64 = 30_000
 
 type Handler struct {
-	store    *store.Store
-	cfg      config.Config
-	cipher   *crypto.Cipher
-	recorder *audit.Recorder
+	store     *store.Store
+	cfg       config.Config
+	cipher    *crypto.Cipher
+	recorder  *audit.Recorder
 	registry  *gateway.Registry
 	sftp      *gateway.SFTPManager
 	forwards  *gateway.PortForwardManager
@@ -42,8 +42,8 @@ type Handler struct {
 func New(s *store.Store, cfg config.Config, c *crypto.Cipher, rec *audit.Recorder, reg *gateway.Registry) *Handler {
 	return &Handler{
 		store: s, cfg: cfg, cipher: c, recorder: rec, registry: reg,
-			sftp:        gateway.NewSFTPManager(),
-			forwards:    gateway.NewPortForwardManager(),
+		sftp:        gateway.NewSFTPManager(),
+		forwards:    gateway.NewPortForwardManager(),
 		shareGroups: make(map[string]*shareGroup),
 		shareTokens: make(map[string]string),
 		upgrader: websocket.Upgrader{
@@ -67,6 +67,11 @@ func (h *Handler) RegisterAccess(g *echo.Group) {
 	g.GET("/forwards", h.forwardList)
 	g.POST("/forwards", h.forwardCreate)
 	g.POST("/forwards/:id/stop", h.forwardStop)
+}
+
+// RegisterAdmin 挂载管理端会话增强能力。
+func (h *Handler) RegisterAdmin(g *echo.Group) {
+	g.GET("/sessions/:id/watch", h.watchSession)
 }
 
 type createReq struct {
@@ -131,7 +136,7 @@ func (h *Handler) terminal(c echo.Context) error {
 	}
 	defer ws.Close()
 
-		client, err := gateway.DialSSH(*target, h.sshOptionsForUser(u.ID))
+	client, err := gateway.DialSSH(*target, h.sshOptionsForUser(u.ID))
 	if err != nil {
 		_ = ws.WriteMessage(websocket.TextMessage, []byte(gateway.EncodeError("连接失败: "+err.Error())))
 		h.finishSession(&sess, "")
@@ -148,9 +153,9 @@ func (h *Handler) terminal(c echo.Context) error {
 	}
 
 	// 桥接开始 → 真正在线。
-		h.store.DB.Model(&model.ConnSession{}).Where("id = ?", sess.ID).Updates(map[string]any{
-			"status": "connected", "connected_at": model.NowMillis(), "reconnect_until": 0,
-		})
+	h.store.DB.Model(&model.ConnSession{}).Where("id = ?", sess.ID).Updates(map[string]any{
+		"status": "connected", "connected_at": model.NowMillis(), "reconnect_until": 0,
+	})
 
 	// 注册到活跃会话表：强制下线时关闭 ws+ssh，使桥接 read 循环退出。
 	h.registry.Add(sess.ID, func() {
@@ -163,15 +168,15 @@ func (h *Handler) terminal(c echo.Context) error {
 	group := h.getOrCreateGroup(sess.ID)
 	defer func() { group.closeAll(); h.removeGroup(sess.ID) }()
 
-		// 旁路审计：录像 + 命令解析（S3-3）+ 观战广播。重连时追加写同一 cast。
-		baseOffset := 0.0
-		if sess.Status == "reconnecting" && sess.ConnectedAt > 0 {
-			baseOffset = float64(model.NowMillis()-sess.ConnectedAt) / 1000
-		}
-		rec := h.recorder.Start(sess.ID, cols, rows)
-		if sess.RecordingPath != "" {
-			rec = h.recorder.Resume(sess.ID, cols, rows, baseOffset)
-		}
+	// 旁路审计：录像 + 命令解析（S3-3）+ 观战广播。重连时追加写同一 cast。
+	baseOffset := 0.0
+	if sess.Status == "reconnecting" && sess.ConnectedAt > 0 {
+		baseOffset = float64(model.NowMillis()-sess.ConnectedAt) / 1000
+	}
+	rec := h.recorder.Start(sess.ID, cols, rows)
+	if sess.RecordingPath != "" {
+		rec = h.recorder.Resume(sess.ID, cols, rows, baseOffset)
+	}
 	cmdParser := audit.NewCommandParser(h.store, &sess)
 	initCmd := ""
 	if a.DefaultPath != "" {
@@ -186,16 +191,16 @@ func (h *Handler) terminal(c echo.Context) error {
 		Init:     initCmd,
 	}
 
-		bridgeErr := gateway.BridgeSSH(ws, client, cols, rows, hooks)
+	bridgeErr := gateway.BridgeSSH(ws, client, cols, rows, hooks)
 
-		path := rec.Close()
-		if h.shouldWaitReconnect(bridgeErr) {
-			h.markReconnecting(&sess, path)
-		} else {
-			h.finishSession(&sess, path)
-		}
-		return nil
+	path := rec.Close()
+	if h.shouldWaitReconnect(bridgeErr) {
+		h.markReconnecting(&sess, path)
+	} else {
+		h.finishSession(&sess, path)
 	}
+	return nil
+}
 
 func (h *Handler) finishSession(sess *model.ConnSession, recordingPath string) {
 	h.sftp.Close(sess.ID) // 顺带关闭该会话的 SFTP 连接
