@@ -1,0 +1,250 @@
+[
+  {
+    "route": "login",
+    "method": "GET",
+    "url": "/login",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "login",
+    "method": "GET",
+    "url": "/api/login-status",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "oidcEnabled": "boolean",
+      "passwordEnabled": "boolean",
+      "status": "string",
+      "webauthnEnabled": "boolean",
+      "wechatWorkEnabled": "boolean"
+    }
+  },
+  {
+    "route": "login",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "login",
+    "method": "GET",
+    "url": "/api/captcha",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "captcha": "string",
+      "enabled": "boolean",
+      "key": "string"
+    }
+  },
+  {
+    "route": "login",
+    "method": "POST",
+    "url": "/api/login",
+    "status": 200,
+    "type": "fetch"
+  },
+  {
+    "route": "login",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "login",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "login",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "login",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "post-login",
+    "method": "GET",
+    "url": "/api/admin/dashboard/v2/date-counter",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "date": "string",
+        "login": "number",
+        "user": "number",
+        "asset": "number"
+      }
+    ]
+  },
+  {
+    "route": "post-login",
+    "method": "GET",
+    "url": "/api/admin/dashboard/time-counter",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "loginFailedTimes": "number",
+      "sessionOnlineCount": "number",
+      "sessionTotalCount": "number",
+      "userOnlineCount": "number",
+      "userTotalCount": "number",
+      "assetActiveCount": "number",
+      "assetTotalCount": "number",
+      "websiteActiveCount": "number",
+      "websiteTotalCount": "number",
+      "gatewayActiveCount": "number",
+      "gatewayTotalCount": "number"
+    }
+  },
+  {
+    "route": "post-login",
+    "method": "GET",
+    "url": "/api/admin/dashboard/asset-types",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "type": "string",
+        "value": "number"
+      }
+    ]
+  },
+  {
+    "route": "post-login",
+    "method": "GET",
+    "url": "/api/admin/sessions/paging?pageIndex=1&pageSize=5&status=disconnected",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [
+        {
+          "id": "string",
+          "assetId": "string",
+          "assetName": "string",
+          "userId": "string",
+          "userAccount": "string",
+          "clientIp": "string",
+          "region": "string",
+          "protocol": "string",
+          "accessMode": "string",
+          "ip": "string",
+          "port": "number",
+          "username": "string",
+          "Password": "string",
+          "usePrivateKey": "boolean",
+          "privateKey": "string",
+          "passphrase": "string",
+          "readonly": "boolean",
+          "attrs": "object",
+          "recordingType": "string",
+          "recordingPath": "string",
+          "recordingSize": "number",
+          "recordingConvertStatus": "string",
+          "recordingConvertProgress": "number",
+          "status": "string",
+          "message": "string",
+          "connectedAt": "number",
+          "disconnectedAt": "number",
+          "connectionDuration": "string",
+          "commandCount": "number",
+          "auditStatus": "string",
+          "gatewayType": "string",
+          "gatewayId": "string",
+          "strategyId": "string",
+          "commandFilterId": "string",
+          "fileSystem": "boolean",
+          "storageId": "string",
+          "guacd": "string",
+          "strategy": {
+            "upload": "…",
+            "download": "…",
+            "delete": "…",
+            "edit": "…",
+            "copy": "…",
+            "paste": "…",
+            "rename": "…",
+            "createDir": "…",
+            "createFile": "…"
+          },
+          "watermark": {
+            "enabled": "…",
+            "content": "…",
+            "color": "…",
+            "size": "…"
+          },
+          "accessTokenId": "string"
+        }
+      ],
+      "total": "number"
+    }
+  }
+]

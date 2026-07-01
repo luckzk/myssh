@@ -1,0 +1,173 @@
+/* 本仓库对 Ynex 主题的少量修正。 */
+
+/* 固定顶栏(position:fixed, 高 ~60px)下，内容区仅有等高 margin-top，
+   导致首个子元素(页头标题)的 my-3 间距被 margin 合并吃掉、标题紧贴/被半透明顶栏遮挡。
+   用 padding-top 阻断 margin 合并，给标题留出呼吸空间。 */
+.main-content.app-content {
+  padding-top: 1.5rem;
+}
+
+/* SSH 终端右侧竖排工具栏按钮（对齐 demo AccessTerminal 暗色侧栏）。 */
+.term-tool {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.term-tool:hover:not(:disabled) {
+  background: #34363a;
+  color: #fff;
+}
+.term-tool:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.term-tool-active {
+  background: #34363a;
+  color: #845adf !important;
+}
+
+/* 文件树节点（暗色） */
+.fs-node {
+  padding-top: 3px;
+  padding-bottom: 3px;
+  border-radius: 4px;
+  color: #d4d4d4;
+}
+.fs-node:hover {
+  background: #2b2d30;
+}
+.fs-node .fs-actions {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.fs-node:hover .fs-actions {
+  opacity: 1;
+}
+.fs-node a {
+  color: #9ca3af;
+  text-decoration: none;
+}
+.fs-node a:hover {
+  color: #fff;
+}
+
+/* 左侧资源树 */
+.at-group,
+.at-item {
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  color: #d4d4d4;
+}
+.at-group:hover,
+.at-item:hover {
+  background: #2b2d30;
+}
+.at-group,
+.at-item {
+  position: relative;
+}
+/* 暗色资源树缩进 + 引导线 */
+.atree-children {
+  margin-left: 9px;
+  padding-left: 14px;
+  border-left: 1px solid #34363a;
+}
+.atree-line::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 11px;
+  height: 1px;
+  background: #34363a;
+}
+
+/* 资产分组树（对齐 conn_ssh 7.png：chevron + 文件夹 + 计数 + 引导线 + 资产叶子） */
+.gt-row,
+.gt-leaf {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.gt-row:hover,
+.gt-leaf:hover {
+  background: #f5f6f7;
+}
+.gt-row.active,
+.gt-leaf.active {
+  background: var(--primary01, rgba(132, 90, 223, 0.1));
+  color: var(--primary-color, #845adf);
+  font-weight: 500;
+}
+.gt-children {
+  margin-left: 9px;
+  padding-left: 14px;
+  border-left: 1px solid #e9edf6;
+}
+/* 横向引导线（连接竖线到节点） */
+.gt-line::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 11px;
+  height: 1px;
+  background: #e9edf6;
+}
+.gt-chev {
+  width: 14px;
+  flex-shrink: 0;
+  color: #9aa1ac;
+  font-size: 16px;
+}
+.gt-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.gt-row:hover .gt-actions {
+  opacity: 1;
+}
+.gt-count {
+  color: #9aa1ac;
+  font-size: 12px;
+}
+
+/* 文件树右键菜单项 */
+.ctx-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: #d4d4d4;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ctx-item:hover {
+  background: #34363a;
+  color: #fff;
+}
+.ctx-item.text-danger:hover {
+  color: #fff !important;
+  background: #b02a37;
+}

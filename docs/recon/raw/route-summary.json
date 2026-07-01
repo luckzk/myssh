@@ -1,0 +1,273 @@
+{
+  "dashboard": {
+    "landedURL": "/dashboard",
+    "api": [
+      "GET 200 /api/account/info",
+      "GET 200 /api/branding",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/dashboard/v2/date-counter",
+      "GET 200 /api/admin/sessions/paging?pageIndex=1&pageSize=5&status=disconnected",
+      "GET 200 /api/admin/dashboard/asset-types",
+      "GET 200 /api/admin/dashboard/time-counter"
+    ]
+  },
+  "asset": {
+    "landedURL": "/asset",
+    "api": [
+      "GET 200 /api/account/info",
+      "GET 200 /api/branding",
+      "GET 200 /api/logo",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/admin/gateway-groups",
+      "GET 200 /api/portal/access-preferences",
+      "GET 200 /api/admin/assets/groups",
+      "GET 200 /api/admin/assets/tags",
+      "GET 200 /api/admin/ssh-gateways",
+      "GET 200 /api/admin/agent-gateways",
+      "GET 200 /api/admin/assets/paging?pageIndex=1&pageSize=10&sortOrder=desc&sortField=sort&groupId=",
+      "GET 200 /api/admin/assets/groups"
+    ]
+  },
+  "database-asset": {
+    "landedURL": "/database-asset",
+    "api": [
+      "GET 200 /api/branding",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/account/info",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/database-assets/paging?pageIndex=1&pageSize=10&sortOrder=&sortField="
+    ]
+  },
+  "db-work-order": {
+    "landedURL": "/db-work-order",
+    "api": [
+      "GET 200 /api/account/info",
+      "GET 200 /api/branding",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/users",
+      "GET 200 /api/portal/database-assets",
+      "GET 200 /api/admin/db-work-orders/paging?pageIndex=1&pageSize=10&sortOrder=&sortField="
+    ]
+  },
+  "credential": {
+    "landedURL": "/credential",
+    "api": [
+      "GET 200 /api/branding",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/account/info",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/credentials/paging?pageIndex=1&pageSize=10&sortOrder=&sortField="
+    ]
+  },
+  "snippet": {
+    "landedURL": "/snippet",
+    "api": [
+      "GET 200 /api/branding",
+      "GET 200 /api/account/info",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/snippets/paging?pageIndex=1&pageSize=10&sortOrder=&sortField="
+    ]
+  },
+  "storage": {
+    "landedURL": "/storage",
+    "api": [
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/account/info",
+      "GET 200 /api/branding",
+      "GET 200 /api/admin/storages/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=",
+      "GET 200 /api/logo"
+    ]
+  },
+  "website": {
+    "landedURL": "/website",
+    "api": [
+      "GET 200 /api/account/info",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/branding",
+      "GET 200 /api/admin/agent-gateways",
+      "GET 200 /api/admin/websites/groups",
+      "GET 200 /api/admin/ssh-gateways",
+      "GET 200 /api/admin/gateway-groups",
+      "GET 200 /api/admin/websites/paging?pageIndex=1&pageSize=10&sortOrder=desc&sortField=sort",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/websites/groups"
+    ]
+  },
+  "certificate": {
+    "landedURL": "/certificate",
+    "api": [
+      "GET 200 /api/branding",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/account/info",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/certificates/paging?pageIndex=1&pageSize=10&sortOrder=ascend&sortField=notAfter"
+    ]
+  },
+  "gateway": {
+    "landedURL": "/gateway",
+    "api": [
+      "GET 200 /api/license?noerr"
+    ]
+  },
+  "ssh-gateway": {
+    "landedURL": "/ssh-gateway",
+    "api": [
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/branding",
+      "GET 200 /api/account/info",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/ssh-gateways/paging?pageIndex=1&pageSize=10&sortOrder=&sortField="
+    ]
+  },
+  "agent-gateway": {
+    "landedURL": "/agent-gateway",
+    "api": [
+      "GET 200 /api/branding",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/account/info",
+      "GET 200 /api/logo",
+      "GET 200 /api/agent/version",
+      "GET 200 /api/admin/agent-gateway-tokens",
+      "GET 200 /api/admin/agent-gateways/paging?pageIndex=1&pageSize=10&sortOrder=desc&sortField=sort"
+    ]
+  },
+  "gateway-group": {
+    "landedURL": "/gateway-group",
+    "api": [
+      "GET 200 /api/account/info",
+      "GET 200 /api/branding",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/admin/gateway-groups/paging?pageIndex=1&pageSize=10",
+      "GET 200 /api/logo"
+    ]
+  },
+  "online-session": {
+    "landedURL": "/online-session",
+    "api": [
+      "GET 200 /api/branding",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/account/info",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/sessions/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=&status=connected",
+      "GET 200 /api/admin/sessions/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=&status=connected"
+    ]
+  },
+  "offline-session": {
+    "landedURL": "/offline-session",
+    "api": [
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/branding",
+      "GET 200 /api/account/info",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/sessions/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=&status=disconnected",
+      "GET 200 /api/admin/sessions/audit-enabled"
+    ]
+  },
+  "exec-command-log": {
+    "landedURL": "/exec-command-log",
+    "api": [
+      "GET 200 /api/account/info",
+      "GET 200 /api/license?noerr",
+      "GET 200 /api/branding",
+      "GET 200 /api/admin/users",
+      "GET 200 /api/admin/exec-command-logs/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=",
+      "GET 200 /api/logo",
+      "GET 200 /api/admin/assets"
+    ]
+  },
+  "filesystem-log": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "access-log": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "access-log-stats": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "login-log": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "operation-log": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "database-sql-log": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "scheduled-task": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "tools": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "monitoring": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "user": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "user-group": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "department": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "role": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "login-policy": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "login-locked": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "oidc-client": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "command-filter": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "strategy": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "authorised-asset": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "authorised-website": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "authorised-database-asset": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "setting": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  },
+  "dev": {
+    "landedURL": "/exec-command-log",
+    "api": []
+  }
+}

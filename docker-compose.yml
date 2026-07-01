@@ -1,0 +1,29 @@
+# S0 小规模一键起：后端 + (后续) guacd + 数据库。
+# MVP 默认 sqlite（单机演示），生产可切 postgres（见 docs/plan/11-deployment）。
+services:
+  app:
+    build: ./server
+    environment:
+      NT_ADDR: ":8088"
+      NT_DB_DRIVER: sqlite
+      NT_DB_DSN: /data/nt.db
+      NT_DEMO_MODE: "false"
+      NT_SEED_ADMIN: "manager:manager"
+      NT_ENC_KEY: "0123456789abcdef0123456789abcdef"
+      NT_ALLOWED_ORIGINS: "*"
+      NT_SSH_HOST_KEY_POLICY: "insecure"
+      NT_GUACD_ADDR: "guacd:4822"
+    volumes:
+      - nt-data:/data
+    ports:
+      - "8088:8088"
+    depends_on: [guacd]
+
+  # 图形协议转换（RDP/VNC/Telnet）。注意：官方镜像为 amd64，
+  # 在 arm64 主机需 qemu 模拟或自行构建 arm64 镜像。
+  guacd:
+    image: guacamole/guacd:latest
+    expose: ["4822"]
+
+volumes:
+  nt-data: {}

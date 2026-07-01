@@ -1,0 +1,2122 @@
+[
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/login",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/captcha",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "captcha": "string",
+      "enabled": "boolean",
+      "key": "string"
+    }
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/login-status",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "oidcEnabled": "boolean",
+      "passwordEnabled": "boolean",
+      "status": "string",
+      "webauthnEnabled": "boolean",
+      "wechatWorkEnabled": "boolean"
+    }
+  },
+  {
+    "route": "boot",
+    "method": "POST",
+    "url": "/api/login",
+    "status": 200,
+    "type": "fetch"
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/admin/dashboard/time-counter",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "loginFailedTimes": "number",
+      "sessionOnlineCount": "number",
+      "sessionTotalCount": "number",
+      "userOnlineCount": "number",
+      "userTotalCount": "number",
+      "assetActiveCount": "number",
+      "assetTotalCount": "number",
+      "websiteActiveCount": "number",
+      "websiteTotalCount": "number",
+      "gatewayActiveCount": "number",
+      "gatewayTotalCount": "number"
+    }
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/admin/dashboard/asset-types",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "type": "string",
+        "value": "number"
+      }
+    ]
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/admin/sessions/paging?pageIndex=1&pageSize=5&status=disconnected",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [
+        {
+          "id": "string",
+          "assetId": "string",
+          "assetName": "string",
+          "userId": "string",
+          "userAccount": "string",
+          "clientIp": "string",
+          "region": "string",
+          "protocol": "string",
+          "accessMode": "string",
+          "ip": "string",
+          "port": "number",
+          "username": "string",
+          "Password": "string",
+          "usePrivateKey": "boolean",
+          "privateKey": "string",
+          "passphrase": "string",
+          "readonly": "boolean",
+          "attrs": "object",
+          "recordingType": "string",
+          "recordingPath": "string",
+          "recordingSize": "number",
+          "recordingConvertStatus": "string",
+          "recordingConvertProgress": "number",
+          "status": "string",
+          "message": "string",
+          "connectedAt": "number",
+          "disconnectedAt": "number",
+          "connectionDuration": "string",
+          "commandCount": "number",
+          "auditStatus": "string",
+          "gatewayType": "string",
+          "gatewayId": "string",
+          "strategyId": "string",
+          "commandFilterId": "string",
+          "fileSystem": "boolean",
+          "storageId": "string",
+          "guacd": "string",
+          "strategy": {
+            "upload": "…",
+            "download": "…",
+            "delete": "…",
+            "edit": "…",
+            "copy": "…",
+            "paste": "…",
+            "rename": "…",
+            "createDir": "…",
+            "createFile": "…"
+          },
+          "watermark": {
+            "enabled": "…",
+            "content": "…",
+            "color": "…",
+            "size": "…"
+          },
+          "accessTokenId": "string"
+        }
+      ],
+      "total": "number"
+    }
+  },
+  {
+    "route": "boot",
+    "method": "GET",
+    "url": "/api/admin/dashboard/v2/date-counter",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "date": "string",
+        "login": "number",
+        "user": "number",
+        "asset": "number"
+      }
+    ]
+  },
+  {
+    "route": "dashboard",
+    "method": "GET",
+    "url": "/dashboard",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "dashboard",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "dashboard",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "dashboard",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "dashboard",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "dashboard",
+    "method": "GET",
+    "url": "/api/admin/dashboard/v2/date-counter",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "date": "string",
+        "login": "number",
+        "user": "number",
+        "asset": "number"
+      }
+    ]
+  },
+  {
+    "route": "dashboard",
+    "method": "GET",
+    "url": "/api/admin/sessions/paging?pageIndex=1&pageSize=5&status=disconnected",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [
+        {
+          "id": "string",
+          "assetId": "string",
+          "assetName": "string",
+          "userId": "string",
+          "userAccount": "string",
+          "clientIp": "string",
+          "region": "string",
+          "protocol": "string",
+          "accessMode": "string",
+          "ip": "string",
+          "port": "number",
+          "username": "string",
+          "Password": "string",
+          "usePrivateKey": "boolean",
+          "privateKey": "string",
+          "passphrase": "string",
+          "readonly": "boolean",
+          "attrs": "object",
+          "recordingType": "string",
+          "recordingPath": "string",
+          "recordingSize": "number",
+          "recordingConvertStatus": "string",
+          "recordingConvertProgress": "number",
+          "status": "string",
+          "message": "string",
+          "connectedAt": "number",
+          "disconnectedAt": "number",
+          "connectionDuration": "string",
+          "commandCount": "number",
+          "auditStatus": "string",
+          "gatewayType": "string",
+          "gatewayId": "string",
+          "strategyId": "string",
+          "commandFilterId": "string",
+          "fileSystem": "boolean",
+          "storageId": "string",
+          "guacd": "string",
+          "strategy": {
+            "upload": "…",
+            "download": "…",
+            "delete": "…",
+            "edit": "…",
+            "copy": "…",
+            "paste": "…",
+            "rename": "…",
+            "createDir": "…",
+            "createFile": "…"
+          },
+          "watermark": {
+            "enabled": "…",
+            "content": "…",
+            "color": "…",
+            "size": "…"
+          },
+          "accessTokenId": "string"
+        }
+      ],
+      "total": "number"
+    }
+  },
+  {
+    "route": "dashboard",
+    "method": "GET",
+    "url": "/api/admin/dashboard/asset-types",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "type": "string",
+        "value": "number"
+      }
+    ]
+  },
+  {
+    "route": "dashboard",
+    "method": "GET",
+    "url": "/api/admin/dashboard/time-counter",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "loginFailedTimes": "number",
+      "sessionOnlineCount": "number",
+      "sessionTotalCount": "number",
+      "userOnlineCount": "number",
+      "userTotalCount": "number",
+      "assetActiveCount": "number",
+      "assetTotalCount": "number",
+      "websiteActiveCount": "number",
+      "websiteTotalCount": "number",
+      "gatewayActiveCount": "number",
+      "gatewayTotalCount": "number"
+    }
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/asset",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/admin/gateway-groups",
+    "status": 200,
+    "type": "fetch",
+    "shape": []
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/portal/access-preferences",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "assetAccessMode": "string"
+    }
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/admin/assets/groups",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "key": "string",
+        "title": "string",
+        "children": []
+      }
+    ]
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/admin/assets/tags",
+    "status": 200,
+    "type": "fetch",
+    "shape": []
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/admin/ssh-gateways",
+    "status": 200,
+    "type": "fetch",
+    "shape": []
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/admin/agent-gateways",
+    "status": 200,
+    "type": "fetch",
+    "shape": []
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/admin/assets/paging?pageIndex=1&pageSize=10&sortOrder=desc&sortField=sort&groupId=",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [
+        {
+          "id": "string",
+          "name": "string",
+          "alias": "string",
+          "logo": "string",
+          "protocol": "string",
+          "ip": "string",
+          "port": "number",
+          "accountType": "string",
+          "credentialId": "string",
+          "username": "string",
+          "password": "string",
+          "privateKey": "string",
+          "passphrase": "string",
+          "description": "string",
+          "status": "string",
+          "statusText": "string",
+          "gatewayType": "string",
+          "gatewayId": "string",
+          "tags": [],
+          "attrs": "object",
+          "createdAt": "number",
+          "updatedAt": "number",
+          "os": "string",
+          "groupId": "string",
+          "sort": "string",
+          "groupFullName": "string"
+        }
+      ],
+      "total": "number"
+    }
+  },
+  {
+    "route": "asset",
+    "method": "GET",
+    "url": "/api/admin/assets/groups",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "key": "string",
+        "title": "string",
+        "children": []
+      }
+    ]
+  },
+  {
+    "route": "database-asset",
+    "method": "GET",
+    "url": "/database-asset",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "database-asset",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "database-asset",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "database-asset",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "database-asset",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "database-asset",
+    "method": "GET",
+    "url": "/api/admin/database-assets/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [],
+      "total": "number"
+    }
+  },
+  {
+    "route": "db-work-order",
+    "method": "GET",
+    "url": "/db-work-order",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "db-work-order",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "db-work-order",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "db-work-order",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "db-work-order",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "db-work-order",
+    "method": "GET",
+    "url": "/api/admin/users",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "id": "string",
+        "nickname": "string",
+        "username": "string"
+      }
+    ]
+  },
+  {
+    "route": "db-work-order",
+    "method": "GET",
+    "url": "/api/portal/database-assets",
+    "status": 200,
+    "type": "fetch",
+    "shape": []
+  },
+  {
+    "route": "db-work-order",
+    "method": "GET",
+    "url": "/api/admin/db-work-orders/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [],
+      "total": "number"
+    }
+  },
+  {
+    "route": "credential",
+    "method": "GET",
+    "url": "/credential",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "credential",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "credential",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "credential",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "credential",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "credential",
+    "method": "GET",
+    "url": "/api/admin/credentials/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [],
+      "total": "number"
+    }
+  },
+  {
+    "route": "snippet",
+    "method": "GET",
+    "url": "/snippet",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "snippet",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "snippet",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "snippet",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "snippet",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "snippet",
+    "method": "GET",
+    "url": "/api/admin/snippets/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [
+        {
+          "id": "string",
+          "name": "string",
+          "content": "string",
+          "visibility": "string",
+          "createdBy": "string",
+          "createdAt": "number",
+          "creator": "string"
+        }
+      ],
+      "total": "number"
+    }
+  },
+  {
+    "route": "storage",
+    "method": "GET",
+    "url": "/storage",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "storage",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "storage",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "storage",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "storage",
+    "method": "GET",
+    "url": "/api/admin/storages/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [
+        {
+          "id": "string",
+          "name": "string",
+          "isShare": "boolean",
+          "limitSize": "number",
+          "usedSize": "number",
+          "isDefault": "boolean",
+          "createdBy": "string",
+          "createdAt": "number",
+          "creator": "string"
+        }
+      ],
+      "total": "number"
+    }
+  },
+  {
+    "route": "storage",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/website",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/admin/agent-gateways",
+    "status": 200,
+    "type": "fetch",
+    "shape": []
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/admin/websites/groups",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "key": "string",
+        "title": "string",
+        "children": []
+      }
+    ]
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/admin/ssh-gateways",
+    "status": 200,
+    "type": "fetch",
+    "shape": []
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/admin/gateway-groups",
+    "status": 200,
+    "type": "fetch",
+    "shape": []
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/admin/websites/paging?pageIndex=1&pageSize=10&sortOrder=desc&sortField=sort",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [
+        {
+          "id": "string",
+          "logo": "string",
+          "name": "string",
+          "enabled": "boolean",
+          "targetUrl": "string",
+          "targetHost": "string",
+          "targetPort": "number",
+          "domain": "string",
+          "asciiDomain": "string",
+          "entrance": "string",
+          "description": "string",
+          "gatewayType": "string",
+          "gatewayId": "string",
+          "groupId": "string",
+          "sort": "string",
+          "headers": [],
+          "cert": {
+            "enabled": "…",
+            "certId": "…"
+          },
+          "public": {
+            "enabled": "…",
+            "ip": "…",
+            "expiredAt": "…",
+            "password": "…",
+            "countries": "…",
+            "provinces": "…",
+            "cities": "…",
+            "headerWhitelist": "…",
+            "pathWhitelist": "…"
+          },
+          "tempAllow": {
+            "enabled": "…",
+            "durationMinutes": "…",
+            "autoRenew": "…"
+          },
+          "basicAuth": {
+            "enabled": "…",
+            "username": "…",
+            "password": "…"
+          },
+          "modifyRules": "object",
+          "createdAt": "number",
+          "disableAccessLog": "boolean",
+          "originHostMode": "string",
+          "originHostCustom": "string",
+          "originTimeout": "number",
+          "groupFullName": "string"
+        }
+      ],
+      "total": "number"
+    }
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "website",
+    "method": "GET",
+    "url": "/api/admin/websites/groups",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "key": "string",
+        "title": "string",
+        "children": []
+      }
+    ]
+  },
+  {
+    "route": "certificate",
+    "method": "GET",
+    "url": "/certificate",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "certificate",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "certificate",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "certificate",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "certificate",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "certificate",
+    "method": "GET",
+    "url": "/api/admin/certificates/paging?pageIndex=1&pageSize=10&sortOrder=ascend&sortField=notAfter",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [
+        {
+          "id": "string",
+          "commonName": "string",
+          "subject": "string",
+          "issuer": "string",
+          "notBefore": "number",
+          "notAfter": "number",
+          "type": "string",
+          "certificate": "string",
+          "privateKey": "string",
+          "requireClientAuth": "boolean",
+          "issuedStatus": "string",
+          "issuedError": "string",
+          "isDefault": "boolean",
+          "renewBefore": "number",
+          "updatedAt": "number"
+        }
+      ],
+      "total": "number"
+    }
+  },
+  {
+    "route": "gateway",
+    "method": "GET",
+    "url": "/gateway",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "gateway",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "ssh-gateway",
+    "method": "GET",
+    "url": "/ssh-gateway",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "ssh-gateway",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "ssh-gateway",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "ssh-gateway",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "ssh-gateway",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "ssh-gateway",
+    "method": "GET",
+    "url": "/api/admin/ssh-gateways/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [],
+      "total": "number"
+    }
+  },
+  {
+    "route": "agent-gateway",
+    "method": "GET",
+    "url": "/agent-gateway",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "agent-gateway",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "agent-gateway",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "agent-gateway",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "agent-gateway",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "agent-gateway",
+    "method": "GET",
+    "url": "/api/agent/version",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "version": "string"
+    }
+  },
+  {
+    "route": "agent-gateway",
+    "method": "GET",
+    "url": "/api/admin/agent-gateway-tokens",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "id": "string",
+        "remark": "string",
+        "updatedAt": "number"
+      }
+    ]
+  },
+  {
+    "route": "agent-gateway",
+    "method": "GET",
+    "url": "/api/admin/agent-gateways/paging?pageIndex=1&pageSize=10&sortOrder=desc&sortField=sort",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [],
+      "total": "number"
+    }
+  },
+  {
+    "route": "gateway-group",
+    "method": "GET",
+    "url": "/gateway-group",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "gateway-group",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "gateway-group",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "gateway-group",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "gateway-group",
+    "method": "GET",
+    "url": "/api/admin/gateway-groups/paging?pageIndex=1&pageSize=10",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [],
+      "total": "number"
+    }
+  },
+  {
+    "route": "gateway-group",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "online-session",
+    "method": "GET",
+    "url": "/online-session",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "online-session",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "online-session",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "online-session",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "online-session",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "online-session",
+    "method": "GET",
+    "url": "/api/admin/sessions/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=&status=connected",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [],
+      "total": "number"
+    }
+  },
+  {
+    "route": "online-session",
+    "method": "GET",
+    "url": "/api/admin/sessions/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=&status=connected",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [],
+      "total": "number"
+    }
+  },
+  {
+    "route": "offline-session",
+    "method": "GET",
+    "url": "/offline-session",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "offline-session",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "offline-session",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "offline-session",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "offline-session",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "offline-session",
+    "method": "GET",
+    "url": "/api/admin/sessions/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=&status=disconnected",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [
+        {
+          "id": "string",
+          "assetId": "string",
+          "assetName": "string",
+          "userId": "string",
+          "userAccount": "string",
+          "clientIp": "string",
+          "region": "string",
+          "protocol": "string",
+          "accessMode": "string",
+          "ip": "string",
+          "port": "number",
+          "username": "string",
+          "Password": "string",
+          "usePrivateKey": "boolean",
+          "privateKey": "string",
+          "passphrase": "string",
+          "readonly": "boolean",
+          "attrs": "object",
+          "recordingType": "string",
+          "recordingPath": "string",
+          "recordingSize": "number",
+          "recordingConvertStatus": "string",
+          "recordingConvertProgress": "number",
+          "status": "string",
+          "message": "string",
+          "connectedAt": "number",
+          "disconnectedAt": "number",
+          "connectionDuration": "string",
+          "commandCount": "number",
+          "auditStatus": "string",
+          "gatewayType": "string",
+          "gatewayId": "string",
+          "strategyId": "string",
+          "commandFilterId": "string",
+          "fileSystem": "boolean",
+          "storageId": "string",
+          "guacd": "string",
+          "strategy": {
+            "upload": "…",
+            "download": "…",
+            "delete": "…",
+            "edit": "…",
+            "copy": "…",
+            "paste": "…",
+            "rename": "…",
+            "createDir": "…",
+            "createFile": "…"
+          },
+          "watermark": {
+            "enabled": "…",
+            "content": "…",
+            "color": "…",
+            "size": "…"
+          },
+          "accessTokenId": "string"
+        }
+      ],
+      "total": "number"
+    }
+  },
+  {
+    "route": "offline-session",
+    "method": "GET",
+    "url": "/api/admin/sessions/audit-enabled",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "terminalEnabled": "boolean"
+    }
+  },
+  {
+    "route": "exec-command-log",
+    "method": "GET",
+    "url": "/exec-command-log",
+    "status": 200,
+    "type": "document"
+  },
+  {
+    "route": "exec-command-log",
+    "method": "GET",
+    "url": "/api/account/info",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "id": "string",
+      "username": "string",
+      "nickname": "string",
+      "type": "string",
+      "enabledTotp": "boolean",
+      "mfaEnabled": "boolean",
+      "roles": [
+        "string"
+      ],
+      "menus": [
+        {
+          "key": "string",
+          "checked": "boolean"
+        }
+      ],
+      "language": "string",
+      "needChangePassword": "boolean",
+      "forceTotpEnabled": "boolean"
+    }
+  },
+  {
+    "route": "exec-command-log",
+    "method": "GET",
+    "url": "/api/license?noerr",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "expired": "number",
+      "oem": "boolean",
+      "type": "string"
+    }
+  },
+  {
+    "route": "exec-command-log",
+    "method": "GET",
+    "url": "/api/branding",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "name": "string",
+      "copyright": "string",
+      "version": "string",
+      "icp": "string",
+      "debug": "boolean",
+      "hiddenUpgrade": "boolean"
+    }
+  },
+  {
+    "route": "exec-command-log",
+    "method": "GET",
+    "url": "/api/admin/users",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "id": "string",
+        "nickname": "string",
+        "username": "string"
+      }
+    ]
+  },
+  {
+    "route": "exec-command-log",
+    "method": "GET",
+    "url": "/api/admin/exec-command-logs/paging?pageIndex=1&pageSize=10&sortOrder=&sortField=",
+    "status": 200,
+    "type": "fetch",
+    "shape": {
+      "items": [],
+      "total": "number"
+    }
+  },
+  {
+    "route": "exec-command-log",
+    "method": "GET",
+    "url": "/api/logo",
+    "status": 200,
+    "type": "image"
+  },
+  {
+    "route": "exec-command-log",
+    "method": "GET",
+    "url": "/api/admin/assets",
+    "status": 200,
+    "type": "fetch",
+    "shape": [
+      {
+        "id": "string",
+        "name": "string"
+      }
+    ]
+  },
+  {
+    "route": "exec-command-log",
+    "method": "NAV-ERR",
+    "url": "/exec-command-log",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "filesystem-log",
+    "method": "NAV-ERR",
+    "url": "/filesystem-log",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "access-log",
+    "method": "NAV-ERR",
+    "url": "/access-log",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "access-log-stats",
+    "method": "NAV-ERR",
+    "url": "/access-log-stats",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "login-log",
+    "method": "NAV-ERR",
+    "url": "/login-log",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "operation-log",
+    "method": "NAV-ERR",
+    "url": "/operation-log",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "database-sql-log",
+    "method": "NAV-ERR",
+    "url": "/database-sql-log",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "scheduled-task",
+    "method": "NAV-ERR",
+    "url": "/scheduled-task",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "tools",
+    "method": "NAV-ERR",
+    "url": "/tools",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "monitoring",
+    "method": "NAV-ERR",
+    "url": "/monitoring",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "user",
+    "method": "NAV-ERR",
+    "url": "/user",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "user-group",
+    "method": "NAV-ERR",
+    "url": "/user-group",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "department",
+    "method": "NAV-ERR",
+    "url": "/department",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "role",
+    "method": "NAV-ERR",
+    "url": "/role",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "login-policy",
+    "method": "NAV-ERR",
+    "url": "/login-policy",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "login-locked",
+    "method": "NAV-ERR",
+    "url": "/login-locked",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "oidc-client",
+    "method": "NAV-ERR",
+    "url": "/oidc-client",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "command-filter",
+    "method": "NAV-ERR",
+    "url": "/command-filter",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "strategy",
+    "method": "NAV-ERR",
+    "url": "/strategy",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "authorised-asset",
+    "method": "NAV-ERR",
+    "url": "/authorised-asset",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "authorised-website",
+    "method": "NAV-ERR",
+    "url": "/authorised-website",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "authorised-database-asset",
+    "method": "NAV-ERR",
+    "url": "/authorised-database-asset",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "setting",
+    "method": "NAV-ERR",
+    "url": "/setting",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  },
+  {
+    "route": "dev",
+    "method": "NAV-ERR",
+    "url": "/dev",
+    "status": 0,
+    "type": "Error: page.goto: Target page, context or browser has been c"
+  }
+]

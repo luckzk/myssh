@@ -1,0 +1,15 @@
+{
+  "name": "next-terminal-clone-plan",
+  "version": "1.0.0",
+  "private": true,
+  "description": "复制 Next Terminal（开源堡垒机/运维审计系统）的实施方案，使用 VitePress 记录",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  }
+}

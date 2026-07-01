@@ -1,0 +1,18 @@
+# build artifacts
+.DS_Store
+.claude/settings.local.json
+server/nt.db
+server/nt.db-*
+server/recordings/
+server/storage/
+web/recordings/
+recordings/
+*.cast
+/tmp/ntserver
+web/node_modules/
+web/dist/
+node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+*.log
+yarn-error.log
