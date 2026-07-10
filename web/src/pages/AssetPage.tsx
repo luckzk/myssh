@@ -5,6 +5,8 @@ import { makeCrud } from '../api/crud'
 import GroupTree, { flattenGroups } from '../components/GroupTree'
 import GuacdModal from '../components/GuacdModal'
 import AssetForm from './AssetForm'
+import { authApi } from '../api/auth'
+import AssetIcon from '../components/AssetIcon'
 import { Card, PageHeader, DataTable, Badge, confirm, toast, type Column } from '../ui'
 
 // 主机资产：列表 + 新增/编辑（多 Tab 对话框 AssetForm）+ 分组树 + guacd 网关。
@@ -30,6 +32,8 @@ export default function AssetPage() {
   })
 
   // 分组树（表单下拉用）+ 全部 SSH 资产（guacd 选择用）
+  const { data: account } = useQuery({ queryKey: ['account-wm'], queryFn: authApi.accountInfo })
+  const isAdmin = account?.type === 'admin'
   const { data: groups = [] } = useQuery({ queryKey: ['asset-groups'], queryFn: assetGroupApi.tree })
   const { data: allAssets = [] } = useQuery({ queryKey: ['assets-all'], queryFn: assetApi.list })
   const groupOptions = [{ value: '', label: '（不分组）' }, ...flattenGroups(groups)]
@@ -90,7 +94,7 @@ export default function AssetPage() {
   }
 
   const columns: Column<Asset>[] = [
-    { title: '名称', dataIndex: 'name' },
+    { title: '名称', key: '__name', render: (_, r) => <span className="d-inline-flex align-items-center gap-2"><AssetIcon asset={r} size={16} />{r.name}</span> },
     { title: '协议', dataIndex: 'protocol', render: (v) => <Badge>{v}</Badge> },
     { title: '地址', key: 'addr', render: (_, r) => `${r.ip}:${r.port}` },
     { title: '账号', dataIndex: 'username' },
@@ -120,19 +124,50 @@ export default function AssetPage() {
           <button
             className="btn btn-sm btn-light"
             onClick={() => {
-              // 打开终端工作台（固定窗口名 → 复用同一浏览器标签，内部用 tab）
-              const q = `open=${rec.id}&name=${encodeURIComponent(rec.name)}&protocol=${rec.protocol}`
-              window.open(`/access?${q}`, 'nt-workspace')
+              // 复用固定窗口名的工作台：空 URL 只聚焦、不导航（避免整页重载断开已有终端）。
+              const w = window.open('', 'nt-workspace')
+              let fresh = !w
+              try {
+                fresh = fresh || !w!.location.href || w!.location.href === 'about:blank'
+              } catch {
+                fresh = false // 跨源无法读取 → 视为已存在的工作台
+              }
+              if (fresh && w) {
+                // 首次打开：冷启动加载，资源自动成为第一个工作组
+                const q = `open=${rec.id}&name=${encodeURIComponent(rec.name)}&protocol=${rec.protocol}`
+                w.location.href = `/access?${q}`
+              } else {
+                // 工作台已打开：广播「新建工作组」，不重载
+                if (typeof BroadcastChannel !== 'undefined') {
+                  const bc = new BroadcastChannel('nt-access')
+                  bc.postMessage({ assetId: rec.id, name: rec.name, protocol: rec.protocol })
+                  bc.close()
+                }
+                w?.focus()
+              }
             }}
           >
             <i className="bx bx-link-external" /> 连接
           </button>
-          <button className="btn btn-sm btn-light" onClick={() => openForm(rec)}>
-            <i className="bx bx-edit-alt" /> 编辑
-          </button>
-          <button className="btn btn-sm btn-danger-light" onClick={() => onDelete(rec.id)}>
-            <i className="bx bx-trash" /> 删除
-          </button>
+          {rec.protocol === 'ssh' && (
+            <button
+              className="btn btn-sm btn-light"
+              title="Docker 管理"
+              onClick={() => window.open(`/docker/${rec.id}?name=${encodeURIComponent(rec.name)}`, `nt-docker-${rec.id}`)}
+            >
+              <i className="bx bxl-docker" /> Docker
+            </button>
+          )}
+          {isAdmin && (
+            <>
+              <button className="btn btn-sm btn-light" onClick={() => openForm(rec)}>
+                <i className="bx bx-edit-alt" /> 编辑
+              </button>
+              <button className="btn btn-sm btn-danger-light" onClick={() => onDelete(rec.id)}>
+                <i className="bx bx-trash" /> 删除
+              </button>
+            </>
+          )}
         </div>
       ),
     },
@@ -144,14 +179,16 @@ export default function AssetPage() {
         title="主机资产"
         crumbs={['资源管理', '主机资产']}
         extra={
-          <>
-            <button className="btn btn-light" onClick={() => setGuacdOpen(true)}>
-              <i className="bx bx-server" /> guacd 网关
-            </button>
-            <button className="btn btn-primary" onClick={() => openForm()}>
-              <i className="bx bx-plus" /> 新增资产
-            </button>
-          </>
+          isAdmin ? (
+            <>
+              <button className="btn btn-light" onClick={() => setGuacdOpen(true)}>
+                <i className="bx bx-server" /> guacd 网关
+              </button>
+              <button className="btn btn-primary" onClick={() => openForm()}>
+                <i className="bx bx-plus" /> 新增资产
+              </button>
+            </>
+          ) : null
         }
       />
       <div className="row g-3">

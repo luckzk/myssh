@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fsApi, type FileInfo } from '../api/filesystem'
-import { Drawer, Spinner, Empty, confirm, toast } from '../ui'
+import { Spinner, Empty, confirm, toast } from '../ui'
 import PermissionDialog from './access/PermissionDialog'
 
 const fmtSize = (n: number) =>
@@ -10,6 +10,18 @@ const fmtSize = (n: number) =>
 const BOOKMARK_KEY = 'nt-sftp-bookmarks'
 const isTextEditable = (name: string) =>
   /\.(txt|log|conf|cfg|ini|json|ya?ml|xml|md|sh|bash|zsh|sql|env|properties|go|ts|tsx|js|jsx|css|html|py|rb|php|java|c|cc|cpp|h|hpp)$/i.test(name)
+
+// shell 单引号转义，安全拼接路径到终端命令
+const q = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`
+const parentOf = (p: string) => {
+  const i = p.lastIndexOf('/')
+  if (i > 0) return p.slice(0, i)
+  return i === 0 ? '/' : '.'
+}
+const baseOf = (p: string) => {
+  const i = p.lastIndexOf('/')
+  return i >= 0 ? p.slice(i + 1) : p
+}
 
 function loadBookmarks(): string[] {
   try {
@@ -20,7 +32,6 @@ function loadBookmarks(): string[] {
     return []
   }
 }
-
 function saveBookmarks(items: string[]) {
   localStorage.setItem(BOOKMARK_KEY, JSON.stringify(items))
 }
@@ -30,9 +41,9 @@ function FsNode({
   sid,
   file,
   depth,
+  hidden,
   selectedDir,
   onSelectDir,
-  onChanged,
   onCtx,
   onPreview,
   onEdit,
@@ -40,9 +51,9 @@ function FsNode({
   sid: string
   file: FileInfo
   depth: number
+  hidden: boolean
   selectedDir: string
   onSelectDir: (dir: string) => void
-  onChanged: () => void
   onCtx: (file: FileInfo, e: React.MouseEvent) => void
   onPreview: (file: FileInfo) => void
   onEdit: (file: FileInfo) => void
@@ -50,22 +61,10 @@ function FsNode({
   const [open, setOpen] = useState(false)
   const isDir = file.isDir
   const { data: children, isLoading } = useQuery({
-    queryKey: ['fs', sid, file.path],
-    queryFn: () => fsApi.ls(sid, file.path),
+    queryKey: ['fs', sid, file.path, hidden],
+    queryFn: () => fsApi.ls(sid, file.path, hidden),
     enabled: isDir && open,
   })
-
-  const del = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!(await confirm(`删除 ${file.name}？`, { danger: true, okText: '删除' }))) return
-    try {
-      await fsApi.rm(sid, file.path)
-      toast.success('已删除')
-      onChanged()
-    } catch (err: any) {
-      toast.error(err.message)
-    }
-  }
 
   const onClick = () => {
     if (isDir) {
@@ -89,6 +88,7 @@ function FsNode({
           e.preventDefault()
           onCtx(file, e)
         }}
+        title={`${file.path}\n${file.mode}  ·  ${fmtSize(file.size)}`}
       >
         {isDir ? (
           <i className={`bx ${open ? 'bx-chevron-down' : 'bx-chevron-right'}`} style={{ width: 16, color: '#9ca3af' }} />
@@ -114,9 +114,6 @@ function FsNode({
             <a href={fsApi.downloadUrl(sid, file.path)} target="_blank" rel="noreferrer" title="下载" onClick={(e) => e.stopPropagation()}>
               <i className="bx bx-download" />
             </a>
-            <a href="#" className="text-danger" title="删除" onClick={del}>
-              <i className="bx bx-trash" />
-            </a>
           </span>
         )}
       </div>
@@ -128,7 +125,7 @@ function FsNode({
             </div>
           ) : (
             (children ?? []).map((c) => (
-              <FsNode key={c.path} sid={sid} file={c} depth={depth + 1} selectedDir={selectedDir} onSelectDir={onSelectDir} onChanged={onChanged} onCtx={onCtx} onPreview={onPreview} onEdit={onEdit} />
+              <FsNode key={c.path} sid={sid} file={c} depth={depth + 1} hidden={hidden} selectedDir={selectedDir} onSelectDir={onSelectDir} onCtx={onCtx} onPreview={onPreview} onEdit={onEdit} />
             ))
           )}
         </div>
@@ -137,48 +134,77 @@ function FsNode({
   )
 }
 
-// 文件管理：暗色懒加载文件树（对齐 demo）。上传/新建目录作用于「当前选中目录」。
-export default function FileManager({ sessionId, open, onClose }: { sessionId: string; open: boolean; onClose: () => void }) {
+interface Props {
+  sessionId: string
+  cwd?: string // 来自终端目录同步（shell cd 后自动跟随）
+  dirFollow?: boolean // 目录跟随开关（受控；来自持久化终端偏好）
+  onSetDirFollow?: (on: boolean) => void // 切换目录跟随：持久化 + 通知服务端注入/撤销 PROMPT_COMMAND
+  onClose: () => void
+  onRunInTerminal?: (cmd: string) => void // 执行命令到当前终端
+  onNewTerminalAt?: (dir: string) => void // 在指定目录新建终端 tab
+}
+
+// 停靠式文件管理面板：路径栏 + 工具栏 + 懒加载文件树 + 右键菜单（对齐 8/9/10/11.png）。
+export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow, onClose, onRunInTerminal, onNewTerminalAt }: Props) {
   const qc = useQueryClient()
-  const [selectedDir, setSelectedDir] = useState('.')
-  const [creating, setCreating] = useState<null | 'dir' | 'file'>(null)
-  const [newName, setNewName] = useState('')
+  const [root, setRoot] = useState('.') // 树根 = 当前目录（. 即登录家目录）
+  const [pathInput, setPathInput] = useState('.')
+  const [hidden, setHidden] = useState(false)
+  const [followLocal, setFollowLocal] = useState(true) // 未受控时的兜底状态
+  const follow = dirFollow ?? followLocal // 目录跟随 shell cwd（优先受控 prop）
+  const toggleFollow = () => {
+    const next = !follow
+    if (onSetDirFollow) onSetDirFollow(next)
+    else setFollowLocal(next)
+  }
+  const [treeKey, setTreeKey] = useState(0) // ++ 触发树重挂载（折叠全部 / 重新定位）
+  const [selectedDir, setSelectedDir] = useState('.') // 上传/新建的目标目录
+  const [creating, setCreating] = useState<null | { mode: 'dir' | 'file'; dir: string }>(null)
+  const [renaming, setRenaming] = useState<null | { file: FileInfo }>(null)
+  const [nameInput, setNameInput] = useState('')
   const [menu, setMenu] = useState<{ x: number; y: number; file: FileInfo } | null>(null)
+  const [submenu, setSubmenu] = useState<null | 'terminal' | 'upload' | 'other'>(null)
   const [permFile, setPermFile] = useState<FileInfo | null>(null)
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null)
   const [editFile, setEditFile] = useState<FileInfo | null>(null)
   const [editContent, setEditContent] = useState('')
+  const [showBookmarks, setShowBookmarks] = useState(false)
   const [bookmarks, setBookmarks] = useState<string[]>(() => loadBookmarks())
   const [queue, setQueue] = useState<{ id: string; name: string; status: 'queued' | 'uploading' | 'done' | 'error'; error?: string }[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
+  const uploadTargetRef = useRef<string>('.') // 触发上传时锁定目标目录
 
   useEffect(() => saveBookmarks(bookmarks), [bookmarks])
 
-  const onCtx = (file: FileInfo, e: React.MouseEvent) => setMenu({ x: e.clientX, y: e.clientY, file })
-
-  const delFromMenu = async (f: FileInfo) => {
-    if (!(await confirm(`删除 ${f.name}？`, { danger: true, okText: '删除' }))) return
-    try {
-      await fsApi.rm(sessionId, f.path)
-      toast.success('已删除')
-      qc.invalidateQueries({ queryKey: ['fs', sessionId] })
-    } catch (e: any) {
-      toast.error(e.message)
+  // 跟随 shell 目录变化：终端 cd 后自动把树根定位过去。
+  useEffect(() => {
+    if (follow && cwd && cwd !== root) {
+      setRoot(cwd)
+      setPathInput(cwd)
+      setSelectedDir(cwd)
+      setTreeKey((k) => k + 1)
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cwd, follow])
 
   const { data: roots, isLoading } = useQuery({
-    queryKey: ['fs', sessionId, '.'],
-    queryFn: () => fsApi.ls(sessionId, '.'),
-    enabled: open && !!sessionId,
-  })
-  const { data: selectedEntries, isLoading: selectedLoading } = useQuery({
-    queryKey: ['fs', sessionId, selectedDir],
-    queryFn: () => fsApi.ls(sessionId, selectedDir),
-    enabled: open && !!sessionId && selectedDir !== '.',
+    queryKey: ['fs', sessionId, root, hidden],
+    queryFn: () => fsApi.ls(sessionId, root, hidden),
+    enabled: !!sessionId,
   })
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['fs', sessionId] })
+
+  const navigate = (dir: string) => {
+    setRoot(dir)
+    setPathInput(dir)
+    setSelectedDir(dir)
+    setTreeKey((k) => k + 1)
+  }
+  const collapseAll = () => setTreeKey((k) => k + 1)
+
+  const dirOf = (f: FileInfo) => (f.isDir ? f.path : parentOf(f.path))
 
   const openEditor = async (file: FileInfo) => {
     if (!isTextEditable(file.name) && !(await confirm('该文件类型不在常见文本列表中，仍要按文本方式编辑？'))) return
@@ -202,127 +228,251 @@ export default function FileManager({ sessionId, open, onClose }: { sessionId: s
   })
 
   const addBookmark = (dir: string) => {
-    setBookmarks((cur) => [dir, ...cur.filter((x) => x !== dir)].slice(0, 12))
+    setBookmarks((cur) => [dir, ...cur.filter((x) => x !== dir)].slice(0, 20))
     toast.success('已加入书签')
   }
-
   const removeBookmark = (dir: string) => setBookmarks((cur) => cur.filter((x) => x !== dir))
 
-  const onFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    e.target.value = ''
+  const delFromMenu = async (f: FileInfo) => {
+    if (!(await confirm(`删除 ${f.name}？`, { danger: true, okText: '删除' }))) return
+    try {
+      await fsApi.rm(sessionId, f.path)
+      toast.success('已删除')
+      refresh()
+    } catch (e: any) {
+      toast.error(e.message)
+    }
+  }
+
+  const copyText = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`已复制${label}`)
+    } catch {
+      toast.error('复制失败')
+    }
+  }
+
+  const runUpload = async (files: File[], baseDir: string, withRel: boolean) => {
     if (files.length === 0) return
-    const items = files.map((file) => ({ id: `${Date.now()}-${file.name}-${Math.random()}`, name: file.name, status: 'queued' as const }))
-    setQueue((cur) => [...items, ...cur].slice(0, 20))
+    const items = files.map((file) => ({ id: `${file.name}-${Math.random()}`, name: withRel ? (file as any).webkitRelativePath || file.name : file.name, status: 'queued' as const }))
+    setQueue((cur) => [...items, ...cur].slice(0, 50))
+    const madeDirs = new Set<string>()
     for (let i = 0; i < files.length; i += 1) {
       const file = files[i]
       const id = items[i].id
+      const rel = withRel ? ((file as any).webkitRelativePath as string) || file.name : file.name
+      const targetDir = withRel ? (parentOf(rel) === '.' ? baseDir : `${baseDir}/${parentOf(rel)}`) : baseDir
       setQueue((cur) => cur.map((x) => (x.id === id ? { ...x, status: 'uploading' } : x)))
       try {
-        await fsApi.upload(sessionId, selectedDir, file)
+        if (withRel && targetDir !== baseDir && !madeDirs.has(targetDir)) {
+          await fsApi.mkdir(sessionId, targetDir)
+          madeDirs.add(targetDir)
+        }
+        await fsApi.upload(sessionId, targetDir, file)
         setQueue((cur) => cur.map((x) => (x.id === id ? { ...x, status: 'done' } : x)))
       } catch (err: any) {
         setQueue((cur) => cur.map((x) => (x.id === id ? { ...x, status: 'error', error: err.message } : x)))
       }
     }
-    toast.success(`上传队列完成：${files.length} 个文件`)
+    toast.success(`上传完成：${files.length} 个文件`)
     refresh()
   }
 
-  const startCreate = (mode: 'dir' | 'file') => {
-    setCreating(mode)
-    setNewName('')
+  const onFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    await runUpload(files, uploadTargetRef.current, false)
   }
+  const onFolderPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    await runUpload(files, uploadTargetRef.current, true)
+  }
+  const pickFiles = (dir: string) => { uploadTargetRef.current = dir; fileInputRef.current?.click() }
+  const pickFolder = (dir: string) => { uploadTargetRef.current = dir; folderInputRef.current?.click() }
 
+  const startCreate = (mode: 'dir' | 'file', dir: string) => {
+    setCreating({ mode, dir })
+    setRenaming(null)
+    setNameInput('')
+  }
   const submitCreate = async () => {
-    const name = newName.trim()
+    if (!creating) return
+    const name = nameInput.trim()
     if (!name) return
-    const full = selectedDir === '.' ? name : `${selectedDir}/${name}`
+    const full = creating.dir === '.' ? name : `${creating.dir}/${name}`
     try {
-      if (creating === 'dir') await fsApi.mkdir(sessionId, full)
+      if (creating.mode === 'dir') await fsApi.mkdir(sessionId, full)
       else await fsApi.touch(sessionId, full)
       toast.success('已创建')
       setCreating(null)
-      setNewName('')
+      setNameInput('')
       refresh()
     } catch (err: any) {
       toast.error(err.message)
     }
   }
 
+  const startRename = (file: FileInfo) => {
+    setRenaming({ file })
+    setCreating(null)
+    setNameInput(file.name)
+  }
+  const submitRename = async () => {
+    if (!renaming) return
+    const name = nameInput.trim()
+    if (!name || name === renaming.file.name) { setRenaming(null); return }
+    const parent = parentOf(renaming.file.path)
+    const dest = parent === '.' ? name : `${parent}/${name}`
+    try {
+      await fsApi.rename(sessionId, renaming.file.path, dest)
+      toast.success('已重命名')
+      setRenaming(null)
+      refresh()
+    } catch (err: any) {
+      toast.error(err.message)
+    }
+  }
+
+  const cdToTerminal = (dir: string) => {
+    onRunInTerminal?.(`cd ${q(dir)}`)
+    toast.success('已发送 cd 命令到终端')
+  }
+  const compress = (f: FileInfo) => {
+    const parent = parentOf(f.path)
+    const base = baseOf(f.path)
+    onRunInTerminal?.(`cd ${q(parent)} && tar -czvf ${q(base + '.tar.gz')} ${q(base)}`)
+    toast.success('已发送压缩命令到终端')
+    setTimeout(refresh, 1500)
+  }
+
+  const closeMenu = () => { setMenu(null); setSubmenu(null) }
+  const bar = creating || renaming
+  // 面板停靠在右侧，靠右时子菜单向左弹出，避免超出视口被裁剪
+  const openLeft = !!menu && typeof window !== 'undefined' && menu.x > window.innerWidth / 2
+
+  const displayRoot = useMemo(() => (root === '.' ? '~' : root), [root])
+
   return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      dark
-      width={460}
-      title="文件管理"
-      extra={
-        <div className="d-flex gap-1">
-          <input ref={fileInputRef} type="file" className="d-none" multiple onChange={onFilePicked} />
-          <button className="term-tool" style={{ width: 28, height: 28, fontSize: 16 }} title={`上传到 ${selectedDir}`} onClick={() => fileInputRef.current?.click()}>
-            <i className="bx bx-upload" />
-          </button>
-          <button className="term-tool" style={{ width: 28, height: 28, fontSize: 16 }} title={`在 ${selectedDir} 新建文件`} onClick={() => startCreate('file')}>
-            <i className="bx bx-file-blank" />
-          </button>
-          <button className="term-tool" style={{ width: 28, height: 28, fontSize: 16 }} title={`在 ${selectedDir} 新建目录`} onClick={() => startCreate('dir')}>
-            <i className="bx bx-folder-plus" />
-          </button>
-          <button className="term-tool" style={{ width: 28, height: 28, fontSize: 16 }} title="刷新" onClick={refresh}>
-            <i className="bx bx-refresh" />
-          </button>
-        </div>
-      }
-    >
-      <div className="text-muted mb-2" style={{ fontSize: 12 }}>
-        <i className="bx bx-folder-open me-1" />
-        当前目录：<code className="text-info">{selectedDir}</code>
-        <button className="btn btn-sm btn-link p-0 ms-2 text-warning" onClick={() => addBookmark(selectedDir)}>
-          <i className="bx bx-bookmark-plus" /> 加书签
+    <div className="d-flex flex-column" style={{ width: '100%', height: '100%', background: '#1E1F22', borderLeft: '1px solid #34363a', color: '#d4d4d4' }}>
+      <input ref={fileInputRef} type="file" className="d-none" multiple onChange={onFilePicked} />
+      {/* @ts-expect-error 非标准目录选择属性 */}
+      <input ref={folderInputRef} type="file" className="d-none" multiple webkitdirectory="" directory="" onChange={onFolderPicked} />
+
+      {/* 顶部标题 + 关闭 */}
+      <div className="d-flex align-items-center px-2" style={{ height: 32, borderBottom: '1px solid #34363a', flexShrink: 0 }}>
+        <i className="bx bx-folder text-warning me-1" />
+        <span style={{ fontSize: 13, color: '#e5e7eb' }}>文件管理</span>
+        <button className="term-tool nt-tip ms-auto" style={{ width: 28, height: 28, fontSize: 16 }} data-tip="关闭文件管理" onClick={onClose}>
+          <i className="bx bx-x" />
         </button>
       </div>
-      {bookmarks.length > 0 && (
-        <div className="mb-2 p-2 rounded" style={{ background: '#2B2D30' }}>
-          <div className="text-light mb-1" style={{ fontSize: 12 }}>目录书签</div>
-          <div className="d-flex flex-wrap gap-1">
-            {bookmarks.map((dir) => (
-              <button key={dir} className="btn btn-sm btn-dark border-secondary d-inline-flex align-items-center gap-1" onClick={() => setSelectedDir(dir)}>
-                <i className="bx bx-bookmark" />
-                <span className="text-truncate" style={{ maxWidth: 150 }}>{dir}</span>
-                <i className="bx bx-x" onClick={(e) => { e.stopPropagation(); removeBookmark(dir) }} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {creating && (
-        <div className="d-flex align-items-center gap-2 mb-2 p-2 rounded" style={{ background: '#2B2D30' }}>
-          <i className={`bx ${creating === 'dir' ? 'bxs-folder' : 'bx-file-blank'}`} style={{ color: creating === 'dir' ? '#e0a23b' : '#7f8c9b' }} />
+      {/* 路径输入 */}
+      <div className="px-2 pt-2" style={{ flexShrink: 0 }}>
+        <div className="d-flex align-items-center gap-1">
+          <i className="bx bx-folder-open text-info" />
+          <input
+            className="form-control form-control-sm bg-dark text-light border-secondary"
+            style={{ fontSize: 12, height: 28 }}
+            value={pathInput}
+            onChange={(e) => setPathInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') navigate(pathInput.trim() || '.') }}
+            placeholder="输入路径后回车跳转"
+          />
+        </div>
+      </div>
+
+      {/* 工具栏 */}
+      <div className="d-flex align-items-center px-2 py-1 flex-wrap" style={{ gap: 2, flexShrink: 0 }}>
+        <button className="term-tool nt-tip" style={{ width: 28, height: 28, fontSize: 16 }} data-tip="返回家目录" onClick={() => navigate('.')}>
+          <i className="bx bx-home-alt" />
+        </button>
+        <button className="term-tool nt-tip" style={{ width: 28, height: 28, fontSize: 16 }} data-tip="定位到当前终端目录" disabled={!cwd} onClick={() => cwd && navigate(cwd)}>
+          <i className="bx bx-current-location" />
+        </button>
+        <button className="term-tool nt-tip" style={{ width: 28, height: 28, fontSize: 16 }} data-tip="折叠全部" onClick={collapseAll}>
+          <i className="bx bx-collapse-vertical" />
+        </button>
+        <button className={`term-tool nt-tip${hidden ? ' term-tool-active' : ''}`} style={{ width: 28, height: 28, fontSize: 16 }} data-tip={hidden ? '隐藏文件：已显示（点击隐藏“.”开头文件）' : '隐藏文件：已隐藏（点击显示“.”开头文件）'} onClick={() => setHidden((v) => !v)}>
+          <i className={`bx ${hidden ? 'bx-show' : 'bx-hide'}`} />
+        </button>
+        <button className="term-tool nt-tip" style={{ width: 28, height: 28, fontSize: 16 }} data-tip="刷新当前目录" onClick={refresh}>
+          <i className="bx bx-refresh" />
+        </button>
+        <button className={`term-tool nt-tip${follow ? ' term-tool-active' : ''}`} style={{ width: 28, height: 28, fontSize: 16 }} data-tip={follow ? '目录跟随：已开启（点击关闭，终端不再注入 PROMPT_COMMAND）' : '目录跟随：已关闭（点击开启，跟随终端 cd 变化）'} onClick={toggleFollow}>
+          <i className={`bx ${follow ? 'bx-link' : 'bx-unlink'}`} />
+        </button>
+        <span style={{ width: 1, height: 18, background: '#34363a', margin: '0 2px' }} />
+        <div style={{ position: 'relative' }}>
+          <button className={`term-tool nt-tip${showBookmarks ? ' term-tool-active' : ''}`} style={{ width: 28, height: 28, fontSize: 16 }} data-tip="书签目录" onClick={() => setShowBookmarks((v) => !v)}>
+            <i className="bx bx-bookmark" />
+          </button>
+          {showBookmarks && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 1080 }} onClick={() => setShowBookmarks(false)} />
+              <div className="rounded shadow" style={{ position: 'absolute', top: 30, left: 0, zIndex: 1081, width: 240, background: '#26282B', border: '1px solid #34363a' }}>
+                <button className="ctx-item" onClick={() => { addBookmark(root); }}>
+                  <i className="bx bx-bookmark-plus me-2 text-warning" />收藏当前目录
+                </button>
+                <div style={{ borderTop: '1px solid #34363a', maxHeight: 220, overflow: 'auto' }}>
+                  {bookmarks.length === 0 ? (
+                    <div className="text-muted px-3 py-2" style={{ fontSize: 12 }}>暂无书签</div>
+                  ) : (
+                    bookmarks.map((dir) => (
+                      <div key={dir} className="ctx-item d-flex align-items-center" onClick={() => { navigate(dir); setShowBookmarks(false) }}>
+                        <i className="bx bx-folder me-2 text-warning" />
+                        <span className="text-truncate flex-grow-1" style={{ maxWidth: 170 }}>{dir}</span>
+                        <i className="bx bx-x" onClick={(e) => { e.stopPropagation(); removeBookmark(dir) }} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <button className="term-tool nt-tip" style={{ width: 28, height: 28, fontSize: 16 }} data-tip={`上传文件到 ${displayRoot}`} onClick={() => pickFiles(root)}>
+          <i className="bx bx-upload" />
+        </button>
+        <button className="term-tool nt-tip" style={{ width: 28, height: 28, fontSize: 16 }} data-tip={`在 ${displayRoot} 新建文件`} onClick={() => startCreate('file', root)}>
+          <i className="bx bx-file-blank" />
+        </button>
+        <button className="term-tool nt-tip" style={{ width: 28, height: 28, fontSize: 16 }} data-tip={`在 ${displayRoot} 新建目录`} onClick={() => startCreate('dir', root)}>
+          <i className="bx bx-folder-plus" />
+        </button>
+      </div>
+
+      {/* 新建 / 重命名 输入条 */}
+      {bar && (
+        <div className="d-flex align-items-center gap-2 mx-2 mb-1 p-2 rounded" style={{ background: '#2B2D30', flexShrink: 0 }}>
+          <i className={`bx ${renaming ? 'bx-edit text-info' : creating!.mode === 'dir' ? 'bxs-folder' : 'bx-file-blank'}`} style={{ color: creating?.mode === 'dir' ? '#e0a23b' : undefined }} />
           <input
             autoFocus
             className="form-control form-control-sm bg-dark text-light border-secondary flex-grow-1"
             style={{ minWidth: 0 }}
-            placeholder={creating === 'dir' ? '新目录名称' : '新文件名称'}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
+            placeholder={renaming ? '新名称' : creating!.mode === 'dir' ? '新目录名称' : '新文件名称'}
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') submitCreate()
-              else if (e.key === 'Escape') setCreating(null)
+              if (e.key === 'Enter') renaming ? submitRename() : submitCreate()
+              else if (e.key === 'Escape') { setCreating(null); setRenaming(null) }
             }}
           />
-          <button className="btn btn-sm btn-primary text-nowrap flex-shrink-0" disabled={!newName.trim()} onClick={submitCreate}>确定</button>
-          <button className="btn btn-sm btn-secondary text-nowrap flex-shrink-0" onClick={() => setCreating(null)}>取消</button>
+          <button className="btn btn-sm btn-primary text-nowrap flex-shrink-0" disabled={!nameInput.trim()} onClick={() => (renaming ? submitRename() : submitCreate())}>确定</button>
+          <button className="btn btn-sm btn-secondary text-nowrap flex-shrink-0" onClick={() => { setCreating(null); setRenaming(null) }}>取消</button>
         </div>
       )}
+
+      {/* 传输队列 */}
       {queue.length > 0 && (
-        <div className="mb-2 p-2 rounded" style={{ background: '#2B2D30' }}>
+        <div className="mx-2 mb-1 p-2 rounded" style={{ background: '#2B2D30', flexShrink: 0 }}>
           <div className="d-flex align-items-center justify-content-between mb-1">
             <span className="text-light" style={{ fontSize: 12 }}>传输队列</span>
             <button className="btn btn-sm btn-link p-0 text-secondary" onClick={() => setQueue([])}>清空</button>
           </div>
-          <div className="d-flex flex-column gap-1" style={{ maxHeight: 110, overflow: 'auto' }}>
+          <div className="d-flex flex-column gap-1" style={{ maxHeight: 100, overflow: 'auto' }}>
             {queue.map((item) => (
               <div key={item.id} className="d-flex align-items-center gap-2" style={{ fontSize: 12 }}>
                 <i className={`bx ${item.status === 'done' ? 'bx-check text-success' : item.status === 'error' ? 'bx-x text-danger' : item.status === 'uploading' ? 'bx-loader-alt bx-spin text-info' : 'bx-time text-secondary'}`} />
@@ -333,70 +483,83 @@ export default function FileManager({ sessionId, open, onClose }: { sessionId: s
           </div>
         </div>
       )}
-      {isLoading ? (
-        <Spinner center />
-      ) : !roots?.length ? (
-        <Empty text="空目录" />
-      ) : (
-        <div>
-          {roots.map((f) => (
-            <FsNode key={f.path} sid={sessionId} file={f} depth={0} selectedDir={selectedDir} onSelectDir={setSelectedDir} onChanged={refresh} onCtx={onCtx} onPreview={setPreviewFile} onEdit={openEditor} />
-          ))}
-        </div>
-      )}
-      {selectedDir !== '.' && (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #34363a' }}>
-          <div className="text-light mb-2" style={{ fontSize: 12 }}>当前目录内容</div>
-          {selectedLoading ? (
-            <span className="spinner-border spinner-border-sm text-secondary" />
-          ) : !selectedEntries?.length ? (
-            <Empty text="空目录" />
-          ) : (
-            selectedEntries.map((f) => (
-              <FsNode key={`selected-${f.path}`} sid={sessionId} file={f} depth={0} selectedDir={selectedDir} onSelectDir={setSelectedDir} onChanged={refresh} onCtx={onCtx} onPreview={setPreviewFile} onEdit={openEditor} />
-            ))
-          )}
-        </div>
-      )}
 
-      {/* 右键菜单 */}
+      {/* 文件树 */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '4px 4px 12px' }}>
+        {isLoading ? (
+          <Spinner center />
+        ) : !roots?.length ? (
+          <Empty text="空目录" />
+        ) : (
+          <div key={treeKey}>
+            {roots.map((f) => (
+              <FsNode key={f.path} sid={sessionId} file={f} depth={0} hidden={hidden} selectedDir={selectedDir} onSelectDir={setSelectedDir} onCtx={(file, e) => { setSubmenu(null); setMenu({ x: e.clientX, y: e.clientY, file }) }} onPreview={setPreviewFile} onEdit={openEditor} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 右键菜单（对齐 9/10/11.png） */}
       {menu && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1090 }} onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null) }} />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1090 }} onClick={closeMenu} onContextMenu={(e) => { e.preventDefault(); closeMenu() }} />
           <div
             className="py-1 rounded shadow"
-            style={{ position: 'fixed', left: menu.x, top: menu.y, zIndex: 1091, minWidth: 160, background: '#26282B', border: '1px solid #34363a' }}
+            style={{ position: 'fixed', left: Math.min(menu.x, window.innerWidth - 190), top: Math.min(menu.y, window.innerHeight - 420), zIndex: 1091, minWidth: 180, background: '#26282B', border: '1px solid #34363a' }}
+            onMouseLeave={() => setSubmenu(null)}
           >
-            <button className="ctx-item" onClick={() => { setPermFile(menu.file); setMenu(null) }}>
-              <i className="bx bx-lock-open-alt me-2" />设置权限
-            </button>
-            {!menu.file.isDir && (
-              <>
-                <button className="ctx-item" onClick={() => { setPreviewFile(menu.file); setMenu(null) }}>
-                  <i className="bx bx-show me-2" />预览
-                </button>
-                <button className="ctx-item" onClick={() => { openEditor(menu.file); setMenu(null) }}>
-                  <i className="bx bx-edit me-2" />编辑
-                </button>
-                <a className="ctx-item d-block text-decoration-none" href={fsApi.downloadUrl(sessionId, menu.file.path)} target="_blank" rel="noreferrer" onClick={() => setMenu(null)}>
-                  <i className="bx bx-download me-2" />下载
-                </a>
-              </>
+            <button className="ctx-item" onMouseEnter={() => setSubmenu(null)} onClick={() => { refresh(); closeMenu() }}><i className="bx bx-refresh me-2" />刷新</button>
+            <button className="ctx-item" onMouseEnter={() => setSubmenu(null)} onClick={() => { startCreate('file', dirOf(menu.file)); closeMenu() }}><i className="bx bx-file-plus me-2" />新建文件</button>
+            <button className="ctx-item" onMouseEnter={() => setSubmenu(null)} onClick={() => { startCreate('dir', dirOf(menu.file)); closeMenu() }}><i className="bx bx-folder-plus me-2" />新建文件夹</button>
+            <button className="ctx-item" onMouseEnter={() => setSubmenu(null)} onClick={() => { startRename(menu.file); closeMenu() }}><i className="bx bx-edit-alt me-2" />重命名</button>
+            {menu.file.isDir ? (
+              <button className="ctx-item" onMouseEnter={() => setSubmenu(null)} onClick={() => { toast.info('文件夹请先“压缩”后再下载'); closeMenu() }}><i className="bx bx-download me-2" />下载</button>
+            ) : (
+              <a className="ctx-item d-block text-decoration-none" href={fsApi.downloadUrl(sessionId, menu.file.path)} target="_blank" rel="noreferrer" onMouseEnter={() => setSubmenu(null)} onClick={closeMenu}><i className="bx bx-download me-2" />下载</a>
             )}
-            <button className="ctx-item text-danger" onClick={() => { delFromMenu(menu.file); setMenu(null) }}>
-              <i className="bx bx-trash me-2" />删除
-            </button>
+            <button className="ctx-item" onMouseEnter={() => setSubmenu(null)} onClick={() => { setPermFile(menu.file); closeMenu() }}><i className="bx bx-lock-open-alt me-2" />修改权限</button>
+
+            {/* 终端 子菜单 */}
+            <div style={{ position: 'relative' }} onMouseEnter={() => setSubmenu('terminal')}>
+              <button className="ctx-item d-flex align-items-center"><i className="bx bx-terminal me-2" />终端<i className="bx bx-chevron-right ms-auto" /></button>
+              {submenu === 'terminal' && (
+                <div className="py-1 rounded shadow" style={{ position: 'absolute', top: 0, [openLeft ? 'right' : 'left']: '100%', minWidth: 200, background: '#26282B', border: '1px solid #34363a' }}>
+                  <button className="ctx-item" onClick={() => { cdToTerminal(dirOf(menu.file)); closeMenu() }}><i className="bx bx-paint me-2" />执行 CD 命令到终端</button>
+                  <button className="ctx-item" onClick={() => { onNewTerminalAt?.(dirOf(menu.file)); closeMenu() }}><i className="bx bx-plus-circle me-2" />新建终端到当前目录</button>
+                </div>
+              )}
+            </div>
+
+            <button className="ctx-item" onMouseEnter={() => setSubmenu(null)} onClick={() => { copyText(menu.file.name, '文件名'); closeMenu() }}><i className="bx bx-copy me-2" />复制文件名</button>
+            <button className="ctx-item" onMouseEnter={() => setSubmenu(null)} onClick={() => { copyText(menu.file.path, '绝对路径'); closeMenu() }}><i className="bx bx-copy-alt me-2" />复制绝对路径</button>
+            <button className="ctx-item text-danger" onMouseEnter={() => setSubmenu(null)} onClick={() => { delFromMenu(menu.file); closeMenu() }}><i className="bx bx-trash me-2" />删除</button>
+
+            {/* 上传 子菜单 */}
+            <div style={{ position: 'relative' }} onMouseEnter={() => setSubmenu('upload')}>
+              <button className="ctx-item d-flex align-items-center"><i className="bx bx-upload me-2" />上传<i className="bx bx-chevron-right ms-auto" /></button>
+              {submenu === 'upload' && (
+                <div className="py-1 rounded shadow" style={{ position: 'absolute', top: 0, [openLeft ? 'right' : 'left']: '100%', minWidth: 160, background: '#26282B', border: '1px solid #34363a' }}>
+                  <button className="ctx-item" onClick={() => { pickFiles(dirOf(menu.file)); closeMenu() }}><i className="bx bx-file me-2" />上传文件</button>
+                  <button className="ctx-item" onClick={() => { pickFolder(dirOf(menu.file)); closeMenu() }}><i className="bx bxs-cloud-upload me-2" />上传文件夹</button>
+                </div>
+              )}
+            </div>
+
+            {/* 其他 子菜单 */}
+            <div style={{ position: 'relative' }} onMouseEnter={() => setSubmenu('other')}>
+              <button className="ctx-item d-flex align-items-center"><i className="bx bx-dots-horizontal-rounded me-2" />其他<i className="bx bx-chevron-right ms-auto" /></button>
+              {submenu === 'other' && (
+                <div className="py-1 rounded shadow" style={{ position: 'absolute', top: 0, [openLeft ? 'right' : 'left']: '100%', minWidth: 140, background: '#26282B', border: '1px solid #34363a' }}>
+                  <button className="ctx-item" onClick={() => { compress(menu.file); closeMenu() }}><i className="bx bx-archive me-2" />压缩</button>
+                </div>
+              )}
+            </div>
           </div>
         </>
       )}
 
-      <PermissionDialog
-        open={!!permFile}
-        onClose={() => setPermFile(null)}
-        sessionId={sessionId}
-        file={permFile}
-        onDone={refresh}
-      />
+      <PermissionDialog open={!!permFile} onClose={() => setPermFile(null)} sessionId={sessionId} file={permFile} onDone={refresh} />
+
       {previewFile && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.45)' }} onClick={() => setPreviewFile(null)} />
@@ -431,23 +594,11 @@ export default function FileManager({ sessionId, open, onClose }: { sessionId: s
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
               spellCheck={false}
-              style={{
-                flex: 1,
-                width: '100%',
-                resize: 'none',
-                border: 0,
-                outline: 'none',
-                background: '#111316',
-                color: '#e5e7eb',
-                padding: 14,
-                fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, monospace',
-                fontSize: 13,
-                lineHeight: 1.5,
-              }}
+              style={{ flex: 1, width: '100%', resize: 'none', border: 0, outline: 'none', background: '#111316', color: '#e5e7eb', padding: 14, fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, monospace', fontSize: 13, lineHeight: 1.5 }}
             />
           </div>
         </>
       )}
-    </Drawer>
+    </div>
   )
 }

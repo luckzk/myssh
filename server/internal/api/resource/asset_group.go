@@ -9,11 +9,13 @@ import (
 
 // 资产分组：取整棵树 / 存整棵树 / 删节点。契约见 docs/recon/asset-group.md。
 
-// treeNode AntD TreeDataNode：{key,title,children}。
+// treeNode AntD TreeDataNode：{key,title,children} + 分组图标。
 type treeNode struct {
-	Key      string      `json:"key"`
-	Title    string      `json:"title"`
-	Children []*treeNode `json:"children,omitempty"`
+	Key       string      `json:"key"`
+	Title     string      `json:"title"`
+	Icon      string      `json:"icon,omitempty"`
+	IconColor string      `json:"iconColor,omitempty"`
+	Children  []*treeNode `json:"children,omitempty"`
 }
 
 // RegisterGroups 挂载 /admin/assets/groups（在 asset 组下）。
@@ -33,7 +35,7 @@ func buildTree(rows []model.AssetGroup, parent string) []*treeNode {
 	out := []*treeNode{}
 	for _, r := range rows {
 		if r.ParentID == parent {
-			node := &treeNode{Key: r.ID, Title: r.Name}
+			node := &treeNode{Key: r.ID, Title: r.Name, Icon: r.Icon, IconColor: r.IconColor}
 			node.Children = buildTree(rows, r.ID)
 			out = append(out, node)
 		}
@@ -56,7 +58,7 @@ func (h *AssetHandler) saveGroups(c echo.Context) error {
 				id = "AG_" + uuid.NewString()
 			}
 			rows = append(rows, model.AssetGroup{
-				ID: id, Name: n.Title, ParentID: parent, Sort: i, CreatedAt: model.NowMillis(),
+				ID: id, Name: n.Title, ParentID: parent, Icon: n.Icon, IconColor: n.IconColor, Sort: i, CreatedAt: model.NowMillis(),
 			})
 			walk(n.Children, id)
 		}

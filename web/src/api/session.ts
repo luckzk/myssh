@@ -36,6 +36,22 @@ function qs(p: Record<string, any>) {
     .join('&')
 }
 
+// 账号级：当前用户仍存活（可恢复）的会话。
+export interface LiveSession {
+  id: string
+  assetId: string
+  assetName: string
+  protocol: string
+  connectedAt: number
+}
+
+export const accountSessionApi = {
+  list: (): Promise<LiveSession[]> => api.get('/account/sessions'),
+  disconnect: (id: string) => api.post(`/account/sessions/${id}/disconnect`),
+  // 会话中实时开关目录跟随（注入/撤销 PROMPT_COMMAND）。走 REST：终端帧 type 单字符已占满。
+  setDirFollow: (id: string, on: boolean) => api.post(`/account/sessions/${id}/dir-follow`, { on }),
+}
+
 export const sessionApi = {
   paging: (p: { pageIndex: number; pageSize: number; status?: string; protocol?: string }): Promise<Paging<Session>> =>
     api.get(`/admin/sessions/paging?${qs(p)}`),

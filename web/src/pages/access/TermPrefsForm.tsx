@@ -1,4 +1,4 @@
-import { useTermSettings, setTermSettings, THEMES, FONT_FAMILIES, type TermSettings } from '../../store/termSettings'
+import { useTermSettings, setTermSettings, THEMES, FONT_FAMILIES, DEFAULT_HIGHLIGHT_RULES, type TermSettings, type HighlightRule } from '../../store/termSettings'
 
 // 终端偏好表单（外观 + 鼠标 + 键盘）。dark=暗色（终端抽屉），否则浅色（设置页）。
 export default function TermPrefsForm({ dark = false }: { dark?: boolean }) {
@@ -58,6 +58,56 @@ export default function TermPrefsForm({ dark = false }: { dark?: boolean }) {
         <Toggle k="interceptSearchHotkey" label="拦截搜索快捷键 (Ctrl/Cmd+F)" />
         <Toggle k="macOptionIsMeta" label="macOS Option 作为 Meta 键" />
       </Section>
+
+      <Section title="关键字高亮">
+        <Toggle k="highlightEnabled" label="启用关键字高亮（对输出中的关键字着色，便于阅读繁忙日志）" />
+        {s.highlightEnabled && <HighlightRules dark={dark} rules={s.highlightRules} numCls={numCls} muted={muted} />}
+      </Section>
+    </div>
+  )
+}
+
+function HighlightRules({ dark, rules, numCls, muted }: { dark: boolean; rules: HighlightRule[]; numCls: string; muted: string }) {
+  const setRules = (next: HighlightRule[]) => setTermSettings({ highlightRules: next })
+  const update = (i: number, patch: Partial<HighlightRule>) => setRules(rules.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+  const remove = (i: number) => setRules(rules.filter((_, idx) => idx !== i))
+  const add = () => setRules([...rules, { pattern: '', color: '#845adf', regex: false }])
+  return (
+    <div>
+      {rules.map((r, i) => (
+        <div key={i} className="d-flex align-items-center gap-2 mb-2">
+          <input
+            className={numCls}
+            style={{ flex: 1 }}
+            placeholder="关键字或正则，如 error"
+            value={r.pattern}
+            onChange={(e) => update(i, { pattern: e.target.value })}
+          />
+          <input
+            type="color"
+            className="form-control form-control-sm p-0"
+            style={{ width: 34, height: 31, flexShrink: 0 }}
+            value={/^#[0-9a-f]{6}$/i.test(r.color) ? r.color : '#845adf'}
+            onChange={(e) => update(i, { color: e.target.value })}
+            title="颜色"
+          />
+          <label className="d-flex align-items-center gap-1 mb-0" style={{ color: muted, fontSize: 12, flexShrink: 0 }} title="按正则解析">
+            <input type="checkbox" className="form-check-input mt-0" checked={!!r.regex} onChange={(e) => update(i, { regex: e.target.checked })} />
+            正则
+          </label>
+          <button className={`btn btn-sm ${dark ? 'btn-dark border-secondary' : 'btn-light'}`} style={{ flexShrink: 0 }} title="删除" onClick={() => remove(i)}>
+            <i className="bx bx-x" />
+          </button>
+        </div>
+      ))}
+      <div className="d-flex gap-2 mt-1">
+        <button className={`btn btn-sm ${dark ? 'btn-dark border-secondary' : 'btn-light'}`} onClick={add}>
+          <i className="bx bx-plus" /> 添加规则
+        </button>
+        <button className="btn btn-sm btn-link p-0 px-1" style={{ color: muted }} onClick={() => setRules(DEFAULT_HIGHLIGHT_RULES)}>
+          恢复默认
+        </button>
+      </div>
     </div>
   )
 }

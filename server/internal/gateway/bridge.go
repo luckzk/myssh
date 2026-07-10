@@ -1,9 +1,11 @@
 package gateway
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -99,8 +101,8 @@ func BridgeSSH(ws *websocket.Conn, client *ssh.Client, cols, rows int, hooks Hoo
 		return ws.WriteMessage(websocket.TextMessage, []byte(encodeFrame(typ, content)))
 	}
 
-	// SSH 输出 → WS（Data 帧）并旁路录像
-	pump := func(r interface{ Read([]byte) (int, error) }) {
+	// SSH 输出 → WS（Data 帧）并旁路录像。scan 非空时旁路扫描 OSC7 目录变更。
+	pump := func(r interface{ Read([]byte) (int, error) }, scan *osc7Scanner) {
 		buf := make([]byte, 4096)
 		for {
 			n, err := r.Read(buf)
@@ -109,6 +111,9 @@ func BridgeSSH(ws *websocket.Conn, client *ssh.Client, cols, rows int, hooks Hoo
 				copy(chunk, buf[:n])
 				if hooks.OnOutput != nil {
 					hooks.OnOutput(chunk)
+				}
+				if scan != nil {
+					scan.feed(chunk, func(dir string) { _ = writeFrame(MsgDirChanged, dir) })
 				}
 				_ = writeFrame(MsgData, string(chunk))
 			}
@@ -122,9 +127,10 @@ func BridgeSSH(ws *websocket.Conn, client *ssh.Client, cols, rows int, hooks Hoo
 			}
 		}
 	}
-	go func() { pump(stdout) }()
+	// 仅在 stdout 上扫描 OSC7（提示符由 stdout 输出），保证 scanner 单协程访问。
+	go func() { pump(stdout, &osc7Scanner{}) }()
 	if stderr != nil {
-		go pump(stderr)
+		go pump(stderr, nil)
 	}
 
 	// WS → SSH（解析上游帧）
@@ -163,6 +169,73 @@ func BridgeSSH(ws *websocket.Conn, client *ssh.Client, cols, rows int, hooks Hoo
 	err = <-done
 	_ = writeFrame(MsgExit, "session closed")
 	return err
+}
+
+// DirScanner 对外暴露 OSC7 目录扫描（供 access.LiveSession 复用同一实现）。
+type DirScanner struct{ s osc7Scanner }
+
+func NewDirScanner() *DirScanner { return &DirScanner{} }
+
+// Feed 投喂输出字节，命中当前目录时回调 emit(dir)。
+func (d *DirScanner) Feed(b []byte, emit func(string)) { d.s.feed(b, emit) }
+
+// EncodeFrame 编码任意类型帧（供 LiveSession 广播 MsgData/MsgDirChanged/MsgExit 等）。
+func EncodeFrame(typ int, content string) string { return encodeFrame(typ, content) }
+
+// DecodeFrame 解析文本帧 → (类型, 内容)。
+func DecodeFrame(s string) (int, string) { return decodeFrame(s) }
+
+// osc7Scanner 从终端输出流中提取 OSC7（ESC ] 7 ; file://host/path BEL|ST）当前目录序列。
+// 需注入 PROMPT_COMMAND 让远端 shell 在每次提示符输出该序列（见 access.terminal）。
+type osc7Scanner struct{ buf []byte }
+
+var osc7Prefix = []byte("\x1b]7;")
+
+func (s *osc7Scanner) feed(b []byte, emit func(string)) {
+	s.buf = append(s.buf, b...)
+	for {
+		i := bytes.Index(s.buf, osc7Prefix)
+		if i < 0 {
+			// 未匹配到前缀：仅保留末尾少量字节以兼容跨块拆分的前缀。
+			if len(s.buf) > 3 {
+				s.buf = append(s.buf[:0], s.buf[len(s.buf)-3:]...)
+			}
+			return
+		}
+		rest := s.buf[i+len(osc7Prefix):]
+		end := bytes.IndexByte(rest, '\x07') // BEL 终止
+		stLen := 1
+		if end < 0 {
+			if j := bytes.Index(rest, []byte("\x1b\\")); j >= 0 { // ST 终止
+				end, stLen = j, 2
+			}
+		}
+		if end < 0 { // 序列未完整到达，保留待下次拼接（限制增长）
+			s.buf = append(s.buf[:0], s.buf[i:]...)
+			if len(s.buf) > 4096 {
+				s.buf = s.buf[len(s.buf)-4096:]
+			}
+			return
+		}
+		if dir := parseFileURI(string(rest[:end])); dir != "" {
+			emit(dir)
+		}
+		s.buf = append(s.buf[:0], rest[end+stLen:]...)
+	}
+}
+
+// parseFileURI 从 file://host/path 提取并解码本地路径。
+func parseFileURI(u string) string {
+	u = strings.TrimPrefix(u, "file://")
+	i := strings.IndexByte(u, '/')
+	if i < 0 {
+		return ""
+	}
+	p := u[i:]
+	if dec, err := url.PathUnescape(p); err == nil {
+		return dec
+	}
+	return p
 }
 
 // parseColsRows 解析 "cols,rows"。

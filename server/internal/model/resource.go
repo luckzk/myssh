@@ -69,6 +69,8 @@ type AssetGroup struct {
 	ID        string `gorm:"primaryKey;size:48" json:"id"`
 	Name      string `json:"name"`
 	ParentID  string `gorm:"index;size:48" json:"parentId"`
+	Icon      string `json:"icon"`      // boxicons 类名，如 bx-folder（空=默认文件夹）
+	IconColor string `json:"iconColor"` // 图标颜色 #hex（空=默认琥珀色）
 	Sort      int    `json:"sort"`
 	CreatedAt int64  `json:"createdAt"`
 }

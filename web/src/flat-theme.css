@@ -1,0 +1,176 @@
+/* ============================================================
+   扁平设计（Flat Design）主题
+   作用域：[data-ui-theme="flat"]（仅影响后台外壳；深色终端工作区不受影响）
+   规范：无阴影 / 无渐变 / 纯色 / 有限调色板 / 圆角 0–4px / 1px 描边 / 过渡 150ms
+   ============================================================ */
+
+[data-ui-theme='flat'] {
+  --flat-primary: #845adf;
+  --flat-primary-hover: #6f42c1;
+  --flat-primary-soft: #efeafb;
+  --flat-bg: #eef0f4;
+  --flat-surface: #ffffff;
+  --flat-border: #e3e6ea;
+  --flat-text: #1f2937;
+  --flat-muted: #6b7280;
+  --flat-radius: 4px;
+
+  /* 覆盖 Bootstrap 全局圆角，收敛为扁平小圆角 */
+  --bs-border-radius: 4px;
+  --bs-border-radius-sm: 3px;
+  --bs-border-radius-lg: 4px;
+  --bs-border-radius-xl: 6px;
+  --bs-border-radius-2xl: 6px;
+}
+
+/* ---- 全局：去阴影、去渐变、纯色底 ---- */
+[data-ui-theme='flat'] body,
+[data-ui-theme='flat'] .main-content.app-content {
+  background-color: var(--flat-bg) !important;
+  background-image: none !important;
+}
+
+[data-ui-theme='flat'] .card,
+[data-ui-theme='flat'] .card.custom-card,
+[data-ui-theme='flat'] .dropdown-menu,
+[data-ui-theme='flat'] .modal-content,
+[data-ui-theme='flat'] .offcanvas,
+[data-ui-theme='flat'] .btn,
+[data-ui-theme='flat'] .app-header,
+[data-ui-theme='flat'] .app-sidebar,
+[data-ui-theme='flat'] .form-control,
+[data-ui-theme='flat'] .form-select,
+[data-ui-theme='flat'] .input-group-text,
+[data-ui-theme='flat'] .badge,
+[data-ui-theme='flat'] .alert,
+[data-ui-theme='flat'] .nav-pills .nav-link {
+  box-shadow: none !important;
+  background-image: none !important;
+}
+
+/* ---- 顶栏 ---- */
+[data-ui-theme='flat'] .app-header {
+  background-color: var(--flat-surface) !important;
+  border-bottom: 1px solid var(--flat-border) !important;
+  backdrop-filter: none !important;
+}
+
+/* ---- 侧栏 ---- */
+[data-ui-theme='flat'] .app-sidebar {
+  background-color: var(--flat-surface) !important;
+  border-right: 1px solid var(--flat-border) !important;
+}
+[data-ui-theme='flat'] .main-sidebar-header {
+  background-color: var(--flat-surface) !important;
+  border-bottom: 1px solid var(--flat-border) !important;
+}
+/* logo 方块：渐变 → 纯色 */
+[data-ui-theme='flat'] .header-logo span[style*='gradient'] {
+  background: var(--flat-primary) !important;
+}
+
+/* ---- 卡片 ---- */
+[data-ui-theme='flat'] .card,
+[data-ui-theme='flat'] .card.custom-card {
+  background-color: var(--flat-surface) !important;
+  border: 1px solid var(--flat-border) !important;
+  border-radius: var(--flat-radius) !important;
+}
+[data-ui-theme='flat'] .card-header {
+  background-color: transparent !important;
+  border-bottom: 1px solid var(--flat-border) !important;
+}
+
+/* ---- 按钮 ---- */
+[data-ui-theme='flat'] .btn {
+  border-radius: var(--flat-radius) !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+[data-ui-theme='flat'] .btn-primary {
+  background-color: var(--flat-primary) !important;
+  border-color: var(--flat-primary) !important;
+  color: #fff !important;
+}
+[data-ui-theme='flat'] .btn-primary:hover,
+[data-ui-theme='flat'] .btn-primary:focus,
+[data-ui-theme='flat'] .btn-primary:active {
+  background-color: var(--flat-primary-hover) !important;
+  border-color: var(--flat-primary-hover) !important;
+}
+[data-ui-theme='flat'] .btn-outline-primary {
+  color: var(--flat-primary) !important;
+  border-color: var(--flat-primary) !important;
+  background-color: transparent !important;
+}
+[data-ui-theme='flat'] .btn-outline-primary:hover {
+  background-color: var(--flat-primary) !important;
+  color: #fff !important;
+}
+[data-ui-theme='flat'] .btn-light,
+[data-ui-theme='flat'] .btn-secondary {
+  border: 1px solid var(--flat-border) !important;
+}
+
+/* ---- 侧栏菜单高亮：纯色浅底 + 左侧主色条 ---- */
+[data-ui-theme='flat'] .side-menu__item {
+  border-radius: var(--flat-radius) !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+[data-ui-theme='flat'] .side-menu__item.active,
+[data-ui-theme='flat'] .side-menu__item:hover {
+  background-color: var(--flat-primary-soft) !important;
+  background-image: none !important;
+  color: var(--flat-primary) !important;
+  box-shadow: none !important;
+}
+[data-ui-theme='flat'] .side-menu__item.active {
+  border-left: 3px solid var(--flat-primary) !important;
+}
+[data-ui-theme='flat'] .side-menu__item.active .side-menu__icon,
+[data-ui-theme='flat'] .side-menu__item.active .side-menu__label {
+  color: var(--flat-primary) !important;
+}
+
+/* ---- 表单：1px 边、小圆角、聚焦仅变边框色（去发光） ---- */
+[data-ui-theme='flat'] .form-control,
+[data-ui-theme='flat'] .form-select,
+[data-ui-theme='flat'] .input-group-text {
+  border: 1px solid var(--flat-border) !important;
+  border-radius: var(--flat-radius) !important;
+  background-color: var(--flat-surface) !important;
+}
+[data-ui-theme='flat'] .form-control:focus,
+[data-ui-theme='flat'] .form-select:focus {
+  border-color: var(--flat-primary) !important;
+  box-shadow: none !important;
+}
+
+/* ---- 下拉 / 模态 / 抽屉 ---- */
+[data-ui-theme='flat'] .dropdown-menu,
+[data-ui-theme='flat'] .modal-content,
+[data-ui-theme='flat'] .offcanvas {
+  border: 1px solid var(--flat-border) !important;
+  border-radius: var(--flat-radius) !important;
+  background-color: var(--flat-surface) !important;
+}
+
+/* ---- 徽章 ---- */
+[data-ui-theme='flat'] .badge {
+  border-radius: 3px !important;
+}
+
+/* ---- 表格：纯色表头 + 1px 分隔线 ---- */
+[data-ui-theme='flat'] .table > thead {
+  background-color: #f5f6f8 !important;
+}
+[data-ui-theme='flat'] .table > :not(caption) > * > * {
+  border-bottom-color: var(--flat-border) !important;
+}
+
+/* ---- 主题切换下拉项当前态：软底 + 主色字（覆盖 Bootstrap 的实心 active，避免同色不可见） ---- */
+[data-ui-theme='flat'] .dropdown-item.theme-switch-item.active,
+[data-ui-theme='flat'] .dropdown-item.theme-switch-item.active:focus,
+[data-ui-theme='flat'] .dropdown-item.theme-switch-item.active:hover {
+  background-color: var(--flat-primary-soft) !important;
+  color: var(--flat-primary) !important;
+}

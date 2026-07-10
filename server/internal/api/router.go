@@ -6,6 +6,7 @@ import (
 
 	"github.com/dushixiang/next-terminal-clone/server/internal/api/access"
 	"github.com/dushixiang/next-terminal-clone/server/internal/api/auth"
+	"github.com/dushixiang/next-terminal-clone/server/internal/api/identity"
 	"github.com/dushixiang/next-terminal-clone/server/internal/api/resource"
 	"github.com/dushixiang/next-terminal-clone/server/internal/audit"
 	"github.com/dushixiang/next-terminal-clone/server/internal/config"
@@ -54,6 +55,7 @@ func NewRouter(s *store.Store, cfg config.Config) *echo.Echo {
 		slog.Error("init cipher failed", "err", err)
 	}
 	recorder := audit.NewRecorder(cfg.Recordings)
+	gateway.SetSerialAllow(cfg.SerialAllow) // 串口设备路径白名单
 	registry := gateway.NewRegistry()
 	sshOptions := gateway.SSHOptions{HostKeyPolicy: cfg.SSHHostKeyPolicy, KnownHostsPath: cfg.SSHKnownHosts}
 	accessH := access.New(s, cfg, cipher, recorder, registry)
@@ -88,6 +90,10 @@ func NewRouter(s *store.Store, cfg config.Config) *echo.Echo {
 	sessionH.Register(adminG.Group("/sessions"))
 	sessionH.RegisterCommands(adminG.Group("/session-commands"))
 	sessionH.RegisterFilesystemLogs(adminG.Group("/filesystem-logs"))
+	// 身份与授权：用户管理 + 资产授权策略
+	identity.NewUserHandler(s).Register(adminG.Group("/users"))
+	identity.NewAuthorizationHandler(s).Register(adminG.Group("/authorizations"))
+	identity.NewCommandFilterHandler(s).Register(adminG.Group("/command-filters"))
 	// 资源管理域：通用 CRUD 模块
 	resource.RegisterResourceModules(adminG, s, cipher)
 

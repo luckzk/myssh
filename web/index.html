@@ -12,6 +12,40 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Next Terminal</title>
+    <!-- 无闪烁应用已选 UI 主题 + 颜色模式（须在样式表之前执行） -->
+    <script>
+      (function () {
+        var el = document.documentElement
+        var t = 'ynex'
+        try {
+          t = localStorage.getItem('nt-ui-theme') || 'ynex'
+          if (t !== 'ynex') el.setAttribute('data-ui-theme', t)
+          // 黏土主题需圆润字体 Nunito：提前注入减少字体闪动
+          if (t === 'clay') {
+            var fl = document.createElement('link')
+            fl.rel = 'stylesheet'
+            fl.href =
+              'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap'
+            document.head.appendChild(fl)
+          }
+        } catch (e) {}
+        try {
+          var m = localStorage.getItem('nt-color-mode') || 'light'
+          var dark =
+            m === 'dark' ||
+            (m === 'auto' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          // 浅色专用主题（扁平/黏土）钉为 light（与 store 的 themeSupportsDark 一致；
+          // React 启动时还会按注册表再校正一次，此处仅为消除首帧闪动）
+          if (t === 'flat' || t === 'clay') dark = false
+          var mode = dark ? 'dark' : 'light'
+          el.setAttribute('data-theme-mode', mode)
+          el.setAttribute('data-menu-styles', mode)
+          el.setAttribute('data-header-styles', mode)
+        } catch (e) {}
+      })()
+    </script>
     <!-- Bootstrap 5（栅格 + 工具类）必须在 Ynex 主题之前 -->
     <link rel="stylesheet" href="/ynex/css/bootstrap.min.css" />
     <!-- Ynex 主题（已 @import Inter 字体） + boxicons 图标 -->

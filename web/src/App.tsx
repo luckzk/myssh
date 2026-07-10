@@ -9,6 +9,7 @@ import AssetPage from './pages/AssetPage'
 import CredentialPage from './pages/CredentialPage'
 import TerminalPage from './pages/TerminalPage'
 import GraphicsPage from './pages/GraphicsPage'
+import DockerManagerPage from './pages/docker/DockerManagerPage'
 import AccessWorkspace from './pages/access/AccessWorkspace'
 import SettingPage from './pages/SettingPage'
 import OfflineSessionPage from './pages/OfflineSessionPage'
@@ -16,6 +17,9 @@ import OnlineSessionPage from './pages/OnlineSessionPage'
 import FileSystemLogPage from './pages/FileSystemLogPage'
 import TerminalPlaybackPage from './pages/TerminalPlaybackPage'
 import AgentGatewayPage from './pages/AgentGatewayPage'
+import UserPage from './pages/UserPage'
+import AuthorizationPage from './pages/AuthorizationPage'
+import CommandFilterPage from './pages/CommandFilterPage'
 import {
   SnippetPage,
   StoragePage,
@@ -39,6 +43,9 @@ const IMPLEMENTED: Record<string, React.ComponentType> = {
   'gateway-group': GatewayGroupPage,
   'ssh-gateway': SshGatewayPage,
   'agent-gateway': AgentGatewayPage,
+  user: UserPage,
+  'authorised-asset': AuthorizationPage,
+  'command-filter': CommandFilterPage,
   setting: SettingPage,
 }
 
@@ -75,6 +82,15 @@ export default function App() {
         element={
           <RequireAuth>
             <GraphicsPage />
+          </RequireAuth>
+        }
+      />
+      {/* 资产级 Docker 管理器，全屏独立页 */}
+      <Route
+        path="/docker/:assetId"
+        element={
+          <RequireAuth>
+            <DockerManagerPage />
           </RequireAuth>
         }
       />

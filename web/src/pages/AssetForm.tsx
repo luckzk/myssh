@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { assetApi, credentialApi, type Asset } from '../api/resource'
 import { Modal, Field, TextInput, Password, Textarea, Select, Switch, toast } from '../ui'
+import AssetIcon from '../components/AssetIcon'
 
-const PROTOCOLS = ['ssh', 'rdp', 'vnc', 'telnet']
-const DEFAULT_PORT: Record<string, number> = { ssh: 22, rdp: 3389, vnc: 5900, telnet: 23 }
+const PROTOCOLS = ['ssh', 'rdp', 'vnc', 'telnet', 'serial', 'local']
+const DEFAULT_PORT: Record<string, number> = { ssh: 22, rdp: 3389, vnc: 5900, telnet: 23, serial: 9600, local: 0 }
 
 // 验证方式（对齐 conn_ssh 参考的分段）。值即存入 accountType。
 const AUTH_METHODS = [
@@ -55,7 +56,20 @@ export default function AssetForm({ open, editing, groupOptions, jumpGroups, onC
   }, [open, editing])
 
   const set = (k: string, val: any) => setV((c) => ({ ...c, [k]: val }))
+  const logoRef = useRef<HTMLInputElement>(null)
+  const onPickLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (file.size > 256 * 1024) return toast.warning('图标不能超过 256KB')
+    const reader = new FileReader()
+    reader.onload = () => set('logo', String(reader.result))
+    reader.readAsDataURL(file)
+  }
   const isSsh = v.protocol === 'ssh'
+  const isTelnet = v.protocol === 'telnet'
+  const isSerial = v.protocol === 'serial'
+  const isLocal = v.protocol === 'local'
   const tabs = isSsh ? TABS_SSH : TABS_OTHER
   const auth = v.accountType ?? 'password'
 
@@ -76,8 +90,10 @@ export default function AssetForm({ open, editing, groupOptions, jumpGroups, onC
 
   const submit = () => {
     if (!v.name) return toast.warning('请输入名称')
-    if (!v.ip) return toast.warning('请输入地址')
-    if (!v.port) return toast.warning('请输入端口')
+    if (!isLocal) {
+      if (!v.ip) return toast.warning(isSerial ? '请输入串口设备' : '请输入地址')
+      if (!v.port && !isSerial) return toast.warning('请输入端口')
+    }
     save.mutate()
   }
 
@@ -141,11 +157,35 @@ export default function AssetForm({ open, editing, groupOptions, jumpGroups, onC
                 <Select options={PROTOCOLS.map((p) => ({ value: p, label: p.toUpperCase() }))} value={v.protocol ?? 'ssh'}
                   onChange={(e) => { const p = e.target.value; setV((c) => ({ ...c, protocol: p, port: DEFAULT_PORT[p] })) }} />
               </Field>
-              <Field col="col-md-2" label="端口" required>
-                <TextInput type="number" value={v.port ?? ''} onChange={(e) => set('port', e.target.value === '' ? '' : Number(e.target.value))} />
-              </Field>
-              <Field col="col-12" label="地址" required>
-                <TextInput placeholder="112.221.141.33" value={v.ip ?? ''} onChange={(e) => set('ip', e.target.value)} />
+              {!isLocal && (
+                <>
+                  <Field col="col-md-2" label={isSerial ? '波特率' : '端口'} required>
+                    <TextInput type="number" placeholder={isSerial ? '9600' : ''} value={v.port ?? ''} onChange={(e) => set('port', e.target.value === '' ? '' : Number(e.target.value))} />
+                  </Field>
+                  <Field col="col-12" label={isSerial ? '串口设备' : '地址'} required>
+                    <TextInput placeholder={isSerial ? '/dev/ttyUSB0' : '112.221.141.33'} value={v.ip ?? ''} onChange={(e) => set('ip', e.target.value)} />
+                  </Field>
+                </>
+              )}
+              {isLocal && (
+                <>
+                  <Field col="col-md-6" label="Shell" extra="留空=按平台默认（Linux/mac: $SHELL 或 bash；Windows: powershell）">
+                    <TextInput placeholder="/bin/bash 或 留空" value={v.username ?? ''} onChange={(e) => set('username', e.target.value)} />
+                  </Field>
+                  <div className="col-12 text-muted" style={{ fontSize: 12 }}>
+                    <i className="bx bx-info-circle me-1" />本地终端 = 给「运行后端的机器」开 shell（极敏感）：需服务端启用 <code>NT_LOCAL_TERMINAL=true</code> 且仅管理员可连；命令过滤仍生效。
+                  </div>
+                </>
+              )}
+              <Field col="col-12" label="图标" extra="优先级：自定义 > 系统(连接后自动识别) > 默认。支持 png/jpg/svg，≤256KB">
+                <div className="d-flex align-items-center gap-3">
+                  <span className="d-inline-flex align-items-center justify-content-center border rounded" style={{ width: 40, height: 40, background: '#f8f9fb' }}>
+                    <AssetIcon asset={{ logo: v.logo, os: v.os, protocol: v.protocol }} size={24} />
+                  </span>
+                  <input ref={logoRef} type="file" accept="image/*" className="d-none" onChange={onPickLogo} />
+                  <button type="button" className="btn btn-light btn-sm" onClick={() => logoRef.current?.click()}><i className="bx bx-upload" /> 上传图标</button>
+                  {v.logo && <button type="button" className="btn btn-link btn-sm text-secondary p-0" onClick={() => set('logo', '')}>清除</button>}
+                </div>
               </Field>
 
               {isSsh && (
@@ -159,7 +199,7 @@ export default function AssetForm({ open, editing, groupOptions, jumpGroups, onC
                 </div>
               )}
 
-              {auth === 'credential' ? (
+              {!isSerial && !isLocal && (auth === 'credential' ? (
                 <Field col="col-12" label="登录凭证">
                   <Select options={credOptions} value={v.credentialId ?? ''} onChange={(e) => set('credentialId', e.target.value)} />
                 </Field>
@@ -169,15 +209,30 @@ export default function AssetForm({ open, editing, groupOptions, jumpGroups, onC
                     <TextInput placeholder="root" value={v.username ?? ''} onChange={(e) => set('username', e.target.value)} />
                   </Field>
                   {auth === 'private-key' ? (
-                    <Field col="col-12" label="私钥" extra={editing ? '留空则不修改' : undefined}>
-                      <Textarea rows={4} value={v.privateKey ?? ''} onChange={(e) => set('privateKey', e.target.value)} />
-                    </Field>
+                    <>
+                      <Field col="col-md-6" label="私钥口令" extra="私钥有加密口令时填写，无则留空">
+                        <Password value={v.passphrase ?? ''} onChange={(e) => set('passphrase', e.target.value)} />
+                      </Field>
+                      <Field col="col-12" label="私钥" extra={editing ? '留空则不修改' : undefined}>
+                        <Textarea rows={4} value={v.privateKey ?? ''} onChange={(e) => set('privateKey', e.target.value)} />
+                      </Field>
+                    </>
                   ) : auth !== 'ask' ? (
                     <Field col="col-md-6" label="登录密码" extra={editing ? '留空则不修改' : undefined}>
                       <Password value={v.password ?? ''} onChange={(e) => set('password', e.target.value)} />
                     </Field>
                   ) : null}
                 </>
+              ))}
+              {isSerial && (
+                <div className="col-12 text-muted" style={{ fontSize: 12 }}>
+                  <i className="bx bx-info-circle me-1" />串口连接堡垒机主机本地设备（如 /dev/ttyUSB0），固定 8N1，无需账号密码；仅允许管理员在白名单路径内的设备。
+                </div>
+              )}
+              {isTelnet && (
+                <div className="col-12 text-muted" style={{ fontSize: 12 }}>
+                  <i className="bx bx-info-circle me-1" />Telnet：登录用户/密码可留空——连接后在提示符手动登录；填写则尝试按 login:/password: 提示自动登录（明文协议，仅用于老旧设备）。
+                </div>
               )}
 
               <Field col="col-md-6" label="标签" extra="英文逗号分隔">

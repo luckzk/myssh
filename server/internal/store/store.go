@@ -53,6 +53,7 @@ func Open(cfg config.Config) (*Store, error) {
 func (s *Store) migrate() error {
 	return s.DB.AutoMigrate(
 		&model.User{}, &model.Role{}, &model.RoleMenu{}, &model.UserRole{},
+		&model.Authorization{}, &model.CommandFilter{},
 		&model.Session{}, &model.LoginLog{},
 		&model.Credential{}, &model.Asset{}, &model.AssetGroup{},
 		&model.ConnSession{}, &model.ExecCommandLog{}, &model.FileSystemLog{},
@@ -80,6 +81,42 @@ func (s *Store) seed(cfg config.Config) error {
 			}
 		}
 		slog.Info("seeded role", "id", roleID, "menus", len(model.MenuKeys))
+	}
+
+	// 默认普通用户角色：仅基础菜单（浏览+连接授权资产），新建 type=user 用户自动归入。
+	const userRoleID = "user"
+	var userRoleCount int64
+	s.DB.Model(&model.Role{}).Where("id = ?", userRoleID).Count(&userRoleCount)
+	if userRoleCount == 0 {
+		role := model.Role{ID: userRoleID, Name: "普通用户", Type: "default", CreatedAt: model.NowMillis()}
+		if err := s.DB.Create(&role).Error; err != nil {
+			return err
+		}
+		for _, key := range []string{"dashboard", "resource", "asset", "log-audit", "online-session"} {
+			if err := s.DB.Create(&model.RoleMenu{RoleID: userRoleID, MenuKey: key, Checked: true}).Error; err != nil {
+				return err
+			}
+		}
+		slog.Info("seeded default user role", "id", userRoleID)
+	}
+
+	// 命令过滤示例规则：首次注入，默认关闭，管理员按需开启（避免意外阻断）。
+	var cfCount int64
+	s.DB.Model(&model.CommandFilter{}).Count(&cfCount)
+	if cfCount == 0 {
+		examples := []model.CommandFilter{
+			{Name: "禁止 rm -rf 根目录", Action: "block", Pattern: `rm\s+-rf?\s+/(\s|$)`, Regex: true, Priority: 10},
+			{Name: "禁止关机/重启", Action: "block", Pattern: `shutdown|reboot|halt|poweroff`, Regex: true, Priority: 20},
+			{Name: "禁止磁盘格式化/覆写", Action: "block", Pattern: `mkfs|dd\s+if=.*of=/dev`, Regex: true, Priority: 30},
+			{Name: "sudo 告警", Action: "warn", Pattern: "sudo", Regex: false, Priority: 100},
+		}
+		for _, e := range examples {
+			e.ID = uuid.NewString()
+			e.Enabled = false
+			e.CreatedAt = model.NowMillis()
+			s.DB.Create(&e)
+		}
+		slog.Info("seeded example command filters (disabled)", "count", len(examples))
 	}
 
 	user, pass := parseCreds(cfg.SeedAdmin)

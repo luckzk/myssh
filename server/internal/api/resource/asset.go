@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/dushixiang/next-terminal-clone/server/internal/authz"
 	"github.com/dushixiang/next-terminal-clone/server/internal/crypto"
 	"github.com/dushixiang/next-terminal-clone/server/internal/gateway"
 	"github.com/dushixiang/next-terminal-clone/server/internal/hostkey"
@@ -12,6 +13,7 @@ import (
 	"github.com/dushixiang/next-terminal-clone/server/internal/web"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // 跳板机链路 JSON 编解码（ssh-gateway id 列表）。
@@ -206,9 +208,31 @@ func (h *AssetHandler) resolveGatewayTarget(gatewayID string) *gateway.SSHTarget
 	return j
 }
 
+// authorizedScope 对非 admin 用户按授权策略把查询限定到可访问资产；admin 不限制。
+// 返回 (受限后的查询, 是否为空集)——空集时调用方应直接返回空列表。
+func (h *AssetHandler) authorizedScope(c echo.Context, q *gorm.DB) (*gorm.DB, bool) {
+	u := web.CurrentUser(c)
+	if u == nil || u.Type == "admin" {
+		return q, false
+	}
+	ids, _ := authz.AuthorizedAssetIDs(h.store.DB, u.ID)
+	if len(ids) == 0 {
+		return q, true
+	}
+	list := make([]string, 0, len(ids))
+	for id := range ids {
+		list = append(list, id)
+	}
+	return q.Where("id IN ?", list), false
+}
+
 func (h *AssetHandler) paging(c echo.Context) error {
 	p := web.ParsePage(c)
 	q := h.store.DB.Model(&model.Asset{})
+	q, empty := h.authorizedScope(c, q)
+	if empty {
+		return web.OK(c, map[string]any{"items": []assetDTO{}, "total": 0})
+	}
 	if aid := c.QueryParam("assetId"); aid != "" {
 		// 聚焦单个资产（点击资源树叶子）——忽略分组/搜索
 		q = q.Where("id = ?", aid)
@@ -242,8 +266,12 @@ func (h *AssetHandler) paging(c echo.Context) error {
 }
 
 func (h *AssetHandler) list(c echo.Context) error {
+	q, empty := h.authorizedScope(c, h.store.DB.Model(&model.Asset{}))
+	if empty {
+		return web.OK(c, []assetDTO{})
+	}
 	var items []model.Asset
-	h.store.DB.Order("created_at desc").Find(&items)
+	q.Order("created_at desc").Find(&items)
 	dtos := make([]assetDTO, 0, len(items))
 	for _, a := range items {
 		dtos = append(dtos, h.toDTO(a))
@@ -272,6 +300,9 @@ func (h *AssetHandler) create(c echo.Context) error {
 		return web.Fail(c, 200, 400, "请求参数错误")
 	}
 	a := in.Asset
+	if len(a.Logo) > 512*1024 {
+		return web.Fail(c, 200, 400, "图标过大（≤ ~380KB）")
+	}
 	a.ID = uuid.NewString()
 	a.Tags = strings.Join(in.Tags, ",")
 	a.GatewayChain = marshalChain(in.GatewayChain)
@@ -297,6 +328,9 @@ func (h *AssetHandler) update(c echo.Context) error {
 		return web.Fail(c, 200, 400, "请求参数错误")
 	}
 	n := in.Asset
+	if len(n.Logo) > 512*1024 {
+		return web.Fail(c, 200, 400, "图标过大（≤ ~380KB）")
+	}
 	cur.Name, cur.Alias, cur.Logo, cur.Protocol = n.Name, n.Alias, n.Logo, n.Protocol
 	cur.IP, cur.Port, cur.Description = n.IP, n.Port, n.Description
 	cur.AccountType, cur.CredentialID, cur.Username = n.AccountType, n.CredentialID, n.Username

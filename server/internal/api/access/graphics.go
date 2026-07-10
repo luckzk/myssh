@@ -1,6 +1,7 @@
 package access
 
 import (
+	"github.com/dushixiang/next-terminal-clone/server/internal/authz"
 	"github.com/dushixiang/next-terminal-clone/server/internal/gateway"
 	"github.com/dushixiang/next-terminal-clone/server/internal/model"
 	"github.com/dushixiang/next-terminal-clone/server/internal/web"
@@ -37,6 +38,9 @@ func (h *Handler) graphics(c echo.Context) error {
 	var a model.Asset
 	if err := h.store.DB.First(&a, "id = ?", sess.AssetID).Error; err != nil {
 		return web.Fail(c, 200, 404, "资产不存在")
+	}
+	if !authz.CanAccess(h.store.DB, u, a.ID) {
+		return web.Fail(c, 200, 403, "无权访问该资产")
 	}
 
 	width := atoiDefault(c.QueryParam("width"), 1024)

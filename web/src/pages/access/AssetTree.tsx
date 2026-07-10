@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { assetApi, assetGroupApi, type Asset, type GroupNode } from '../../api/resource'
+import GroupIcon from '../../components/GroupIcon'
+import AssetIcon from '../../components/AssetIcon'
 
 // 协议 → 图标 + 徽章色（对齐 demo：SSH 绿 / RDP 紫 / VNC 黄 / Telnet 蓝）
 const PROTO: Record<string, { icon: string; color: string }> = {
@@ -57,7 +59,7 @@ export default function AssetTree({ currentAssetId, onOpen }: Props) {
         title={`${a.name} (${a.ip})`}
         onClick={() => open(a)}
       >
-        <i className={`bx ${p.icon}`} style={{ color: '#9ca3af' }} />
+        <AssetIcon asset={a} size={16} color="#9ca3af" />
         <span className="flex-grow-1 text-truncate" style={{ fontSize: 13 }}>{a.name}</span>
         <span className={`badge bg-${p.color}-transparent text-${p.color}`} style={{ fontSize: 9 }}>{a.protocol.toUpperCase()}</span>
       </div>
@@ -73,7 +75,7 @@ export default function AssetTree({ currentAssetId, onOpen }: Props) {
       <div key={g.key}>
         <div className={`at-group d-flex align-items-center gap-1 ${depth > 0 ? 'atree-line' : ''}`} onClick={() => toggle(g.key)}>
           <i className={`bx ${isOpen(g.key) ? 'bx-chevron-down' : 'bx-chevron-right'}`} style={{ color: '#9ca3af', visibility: hasKids ? 'visible' : 'hidden' }} />
-          <i className="bx bxs-folder" style={{ color: '#e0a23b' }} />
+          <GroupIcon icon={g.icon} color={g.iconColor} size={15} />
           <span className="flex-grow-1 text-truncate" style={{ fontSize: 13 }}>{g.title}</span>
           <span className="text-muted" style={{ fontSize: 11 }}>{countOf(g)}</span>
         </div>

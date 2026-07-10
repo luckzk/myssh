@@ -70,6 +70,9 @@ func (rec *Recording) WriteOutput(data []byte) {
 	_, _ = rec.f.Write(append(frame, '\n'))
 }
 
+// Path 返回录像文件路径（用于会话开始时即落 recording_path，便于回放进行中的会话）。
+func (rec *Recording) Path() string { return rec.path }
+
 // Close 关闭录像并返回存储路径（用于落 session.recording_path）。
 func (rec *Recording) Close() string {
 	if rec.f == nil {

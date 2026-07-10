@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader, Card, Empty, toast, DataTable, Badge, confirm, type Column } from '../ui'
-import { hostKeyApi, securityApi, siteApi, type SiteSettings, type TrustedHostKey } from '../api/resource'
+import { hostKeyApi, securityApi, siteApi, sessionSettingsApi, type SiteSettings, type SessionSettings, type TrustedHostKey } from '../api/resource'
 import TermPrefsForm from './access/TermPrefsForm'
 
 // 系统设置：Ynex「Vertical Tab Style-1」(nav-pills tab-style-7) 左竖向标签 + 右内容。
 const CATEGORIES = [
   { key: 'site', label: '站点信息', icon: 'bx-globe' },
   { key: 'access', label: '资产接入设置', icon: 'bx-terminal' },
+  { key: 'session', label: '会话保活', icon: 'bx-time-five' },
   { key: 'security', label: '安全设置', icon: 'bx-shield' },
   { key: 'notify', label: '通知与集成', icon: 'bx-bell' },
   { key: 'log', label: '日志保留设置', icon: 'bx-history' },
@@ -37,6 +38,38 @@ function SitePanel() {
       <div className="col-12">
         <label className="form-label">版权信息</label>
         <input className="form-control" value={form.copyright} onChange={(e) => setForm({ ...form, copyright: e.target.value })} />
+      </div>
+      <div className="col-12">
+        <button className="btn btn-primary" disabled={save.isPending} onClick={() => save.mutate()}>保存</button>
+      </div>
+    </div>
+  )
+}
+
+function SessionPanel() {
+  const qc = useQueryClient()
+  const { data } = useQuery({ queryKey: ['session-settings'], queryFn: sessionSettingsApi.get })
+  const [form, setForm] = useState<SessionSettings>({ ttl: '', scrollback: '' })
+  useEffect(() => { if (data) setForm(data) }, [data])
+  const save = useMutation({
+    mutationFn: () => sessionSettingsApi.save(form),
+    onSuccess: () => { toast.success('已保存，立即生效'); qc.invalidateQueries({ queryKey: ['session-settings'] }) },
+    onError: (e: any) => toast.error(e.message),
+  })
+  return (
+    <div className="row g-3" style={{ maxWidth: 620 }}>
+      <p className="text-muted col-12 mb-0" style={{ fontSize: 13 }}>
+        浏览器断开后，SSH 会话在服务器端保活，可换浏览器 / 重新登录后恢复（shell 状态不丢）。修改立即生效，无需重启。
+      </p>
+      <div className="col-md-6">
+        <label className="form-label">分离会话保活时长</label>
+        <input className="form-control" value={form.ttl} onChange={(e) => setForm({ ...form, ttl: e.target.value })} placeholder="12h" />
+        <div className="form-text">无人连接超过该时长自动回收。示例：12h、90m、24h。</div>
+      </div>
+      <div className="col-md-6">
+        <label className="form-label">回滚缓冲大小</label>
+        <input className="form-control" value={form.scrollback} onChange={(e) => setForm({ ...form, scrollback: e.target.value })} placeholder="256k" />
+        <div className="form-text">重新附着时回放的近期输出量。示例：256k、1m。</div>
       </div>
       <div className="col-12">
         <button className="btn btn-primary" disabled={save.isPending} onClick={() => save.mutate()}>保存</button>
@@ -168,8 +201,9 @@ export default function SettingPage() {
                 <TermPrefsForm />
               </div>
             )}
+            {cat === 'session' && <SessionPanel />}
             {cat === 'security' && <SecurityPanel />}
-            {cat !== 'site' && cat !== 'access' && cat !== 'security' && (
+            {cat !== 'site' && cat !== 'access' && cat !== 'session' && cat !== 'security' && (
               <Empty text={`「${current.label}」规划中（对齐 demo 设置项，后端待接）`} />
             )}
           </div>

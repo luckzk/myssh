@@ -3,7 +3,9 @@ package config
 import (
 	"errors"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const DefaultEncKey = "0123456789abcdef0123456789abcdef"
@@ -23,6 +25,10 @@ type Config struct {
 	SecurityToken    string   // 查看敏感明文的二次校验令牌
 	SSHHostKeyPolicy string   // insecure | known_hosts | tofu
 	SSHKnownHosts    string   // known_hosts 文件路径
+	SessionTTL        time.Duration // 分离（无人连接）会话的保活上限，超时回收
+	SessionScrollback int           // 每会话回滚缓冲字节数（重新附着时回放近期输出）
+	SerialAllow       []string      // 串口设备路径允许前缀（防打开任意文件）
+	LocalTerminal     bool          // 是否允许「本地终端」（后端主机 shell）——默认关闭，极敏感
 }
 
 func Load() Config {
@@ -44,7 +50,45 @@ func Load() Config {
 		SecurityToken:    env("NT_SECURITY_TOKEN", ""),
 		SSHHostKeyPolicy: strings.ToLower(env("NT_SSH_HOST_KEY_POLICY", "tofu")),
 		SSHKnownHosts:    env("NT_SSH_KNOWN_HOSTS", ""),
+		SessionTTL:        envDuration("NT_SESSION_TTL", 12*time.Hour),
+		SessionScrollback: envBytes("NT_SESSION_SCROLLBACK", 256*1024),
+		SerialAllow:       splitCSV(env("NT_SERIAL_ALLOW", "/dev/tty,/dev/serial/")),
+		LocalTerminal:     env("NT_LOCAL_TERMINAL", "false") == "true",
 	}
+}
+
+// envBytes 从环境变量解析字节大小；非法/缺省回落默认。
+func envBytes(k string, def int) int {
+	return ParseBytes(os.Getenv(k), def)
+}
+
+// ParseBytes 解析字节大小，支持 k/K/m/M 后缀（如 "256k"、"1m"）；非法/空回落 def。
+func ParseBytes(v string, def int) int {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return def
+	}
+	mult := 1
+	switch v[len(v)-1] {
+	case 'k', 'K':
+		mult, v = 1024, v[:len(v)-1]
+	case 'm', 'M':
+		mult, v = 1024*1024, v[:len(v)-1]
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n * mult
+}
+
+func envDuration(k string, def time.Duration) time.Duration {
+	if v := os.Getenv(k); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+	return def
 }
 
 func (c Config) Production() bool {

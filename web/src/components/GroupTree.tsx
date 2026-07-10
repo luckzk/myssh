@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { assetApi, assetGroupApi, type Asset, type GroupNode } from '../api/resource'
+import AssetIcon from './AssetIcon'
+import GroupIcon from './GroupIcon'
 import { confirm, toast, Modal, Field, TextInput } from '../ui'
 
 // 资产分组树（对齐 conn_ssh 7.png）：全部 + 文件夹(chevron/计数) + 引导线 + 嵌套 + 资产叶子。
@@ -11,8 +13,19 @@ interface Props {
   onSelectAsset?: (assetId: string) => void // 点资产叶子：聚焦该资产（不选中父分组）
 }
 
-function renameInTree(nodes: GroupNode[], key: string, title: string): GroupNode[] {
-  return nodes.map((n) => (n.key === key ? { ...n, title } : { ...n, children: n.children ? renameInTree(n.children, key, title) : n.children }))
+// 分组图标预设（boxicons 类名）+ 颜色调色板 + 默认。
+const DEFAULT_ICON = 'bx-folder'
+const DEFAULT_COLOR = '#e0a23b'
+const GROUP_ICONS = [
+  'bx-folder', 'bxs-folder', 'bx-folder-open', 'bx-server', 'bx-data', 'bx-cloud',
+  'bx-network-chart', 'bx-cube', 'bx-globe', 'bx-shield', 'bx-lock-alt', 'bx-desktop',
+  'bx-chip', 'bx-terminal', 'bx-buildings', 'bx-box', 'bx-package', 'bx-group',
+  'bx-star', 'bx-flag', 'bx-code-block', 'bx-git-branch',
+]
+const GROUP_COLORS = ['#e0a23b', '#845adf', '#22c55e', '#3b82f6', '#ef4444', '#06b6d4', '#f97316', '#ec4899', '#9ca3af']
+
+function editInTree(nodes: GroupNode[], key: string, patch: Partial<GroupNode>): GroupNode[] {
+  return nodes.map((n) => (n.key === key ? { ...n, ...patch } : { ...n, children: n.children ? editInTree(n.children, key, patch) : n.children }))
 }
 function addToTree(nodes: GroupNode[], parentKey: string, node: GroupNode): GroupNode[] {
   if (!parentKey) return [...nodes, node]
@@ -32,6 +45,20 @@ export default function GroupTree({ selected, onSelect, onSelectAsset }: Props) 
   const [activeAsset, setActiveAsset] = useState('')
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [name, setName] = useState('')
+  const [icon, setIcon] = useState(DEFAULT_ICON)
+  const [iconColor, setIconColor] = useState(DEFAULT_COLOR)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const isImage = icon.startsWith('data:')
+
+  const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 允许重复选同一文件
+    if (!file) return
+    if (file.size > 256 * 1024) return toast.warning('图标不能超过 256KB')
+    const reader = new FileReader()
+    reader.onload = () => setIcon(String(reader.result))
+    reader.readAsDataURL(file)
+  }
 
   // 直属分组的资产
   const byGroup = useMemo(() => {
@@ -56,12 +83,17 @@ export default function GroupTree({ selected, onSelect, onSelectAsset }: Props) 
   const isOpen = (k: string) => expanded[k] !== false // 默认展开
   const toggle = (k: string) => setExpanded((s) => ({ ...s, [k]: !isOpen(k) }))
 
-  const openDialog = (d: Dialog, initial = '') => { setDialog(d); setName(initial) }
+  const openDialog = (d: Dialog) => {
+    setDialog(d)
+    setName(d.node?.title ?? '')
+    setIcon(d.node?.icon || DEFAULT_ICON)
+    setIconColor(d.node?.iconColor || DEFAULT_COLOR)
+  }
   const submitDialog = async () => {
     const v = name.trim()
     if (!v || !dialog) return setDialog(null)
-    if (dialog.mode === 'rename' && dialog.node) await saveTree(renameInTree(tree, dialog.node.key, v))
-    else await saveTree(addToTree(tree, dialog.parentKey || '', { key: '', title: v }))
+    if (dialog.mode === 'rename' && dialog.node) await saveTree(editInTree(tree, dialog.node.key, { title: v, icon, iconColor }))
+    else await saveTree(addToTree(tree, dialog.parentKey || '', { key: '', title: v, icon, iconColor }))
     setDialog(null)
   }
   const del = async (node: GroupNode) => {
@@ -83,7 +115,7 @@ export default function GroupTree({ selected, onSelect, onSelectAsset }: Props) 
       onClick={() => { setActiveAsset(a.id); onSelectAsset?.(a.id) }}
     >
       <span style={{ width: 14, flexShrink: 0 }} />
-      <i className="bx bx-window-alt" style={{ color: '#9aa1ac', fontSize: 14 }} />
+      <AssetIcon asset={a} size={14} color="#9aa1ac" />
       <span className="text-truncate">{a.name}</span>
     </div>
   )
@@ -107,12 +139,12 @@ export default function GroupTree({ selected, onSelect, onSelectAsset }: Props) 
           ) : (
             <span className="gt-chev" />
           )}
-          <i className="bx bx-folder" style={{ color: '#e0a23b', flexShrink: 0 }} />
+          <GroupIcon icon={g.icon} color={g.iconColor} size={16} />
           <span className="text-truncate">{g.title}</span>
           <span className="gt-count">({countOf(g)})</span>
           <span className="gt-actions">
             <i className="bx bx-plus" title="新建子分组" onClick={(e) => { e.stopPropagation(); openDialog({ mode: 'child', parentKey: g.key }) }} />
-            <i className="bx bx-edit-alt" title="重命名" onClick={(e) => { e.stopPropagation(); openDialog({ mode: 'rename', node: g }, g.title) }} />
+            <i className="bx bx-edit-alt" title="编辑分组（名称/图标）" onClick={(e) => { e.stopPropagation(); openDialog({ mode: 'rename', node: g }) }} />
             <i className="bx bx-trash" title="删除" onClick={(e) => { e.stopPropagation(); del(g) }} />
           </span>
         </div>
@@ -149,14 +181,63 @@ export default function GroupTree({ selected, onSelect, onSelectAsset }: Props) 
       <Modal
         open={!!dialog}
         width={420}
-        title={dialog?.mode === 'rename' ? '重命名分组' : dialog?.mode === 'child' ? '新建子分组' : '新建分组'}
+        title={dialog?.mode === 'rename' ? '编辑分组' : dialog?.mode === 'child' ? '新建子分组' : '新建分组'}
         onClose={() => setDialog(null)}
         onOk={submitDialog}
         okText={dialog?.mode === 'rename' ? '保存' : '创建'}
       >
         <Field label="分组名称" required>
-          <TextInput autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitDialog() }} placeholder="如：生产环境" />
+          <div className="d-flex align-items-center gap-2">
+            <span className="d-inline-flex align-items-center justify-content-center flex-shrink-0" style={{ width: 34, height: 34, borderRadius: 8, background: '#f5f6f7' }}>
+              <GroupIcon icon={icon} color={iconColor} size={20} />
+            </span>
+            <TextInput autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitDialog() }} placeholder="如：生产环境" />
+          </div>
         </Field>
+        <Field label="图标" extra="选预设图标或上传自定义图片（png/jpg/svg，≤256KB）">
+          <div className="d-flex flex-wrap gap-1 mb-2">
+            {GROUP_ICONS.map((ic) => (
+              <button
+                key={ic}
+                type="button"
+                onClick={() => setIcon(ic)}
+                className="d-inline-flex align-items-center justify-content-center"
+                style={{
+                  width: 32, height: 32, borderRadius: 6, cursor: 'pointer',
+                  border: icon === ic ? '2px solid var(--primary-color, #845adf)' : '1px solid #e6e6e6',
+                  background: icon === ic ? 'var(--primary01, rgba(132,90,223,.1))' : '#fff',
+                }}
+                title={ic}
+              >
+                <i className={`bx ${ic}`} style={{ color: iconColor, fontSize: 18 }} />
+              </button>
+            ))}
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <input ref={fileRef} type="file" accept="image/*" className="d-none" onChange={onPickImage} />
+            <button type="button" className="btn btn-light btn-sm" onClick={() => fileRef.current?.click()}><i className="bx bx-upload" /> 上传图标</button>
+            {isImage && <><span className="text-success small"><i className="bx bx-check" /> 已用自定义图片</span><button type="button" className="btn btn-link btn-sm text-secondary p-0" onClick={() => setIcon(DEFAULT_ICON)}>移除</button></>}
+          </div>
+        </Field>
+        {!isImage && (
+          <Field label="颜色">
+            <div className="d-flex flex-wrap gap-2">
+              {GROUP_COLORS.map((cl) => (
+                <button
+                  key={cl}
+                  type="button"
+                  onClick={() => setIconColor(cl)}
+                  style={{
+                    width: 24, height: 24, borderRadius: '50%', cursor: 'pointer', background: cl,
+                    border: iconColor === cl ? '2px solid #111' : '2px solid transparent',
+                    boxShadow: iconColor === cl ? '0 0 0 2px #fff inset' : 'none',
+                  }}
+                  title={cl}
+                />
+              ))}
+            </div>
+          </Field>
+        )}
       </Modal>
     </div>
   )

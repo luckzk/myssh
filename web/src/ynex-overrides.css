@@ -35,6 +35,41 @@
   color: #845adf !important;
 }
 
+/* 图标按钮悬停提示：悬停约 0.55s 后淡入功能文字，离开立即消失。
+   用 data-tip 承载文本（替代原生 title，样式统一、可控延迟）。 */
+.nt-tip {
+  position: relative;
+}
+.nt-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 200px;
+  padding: 5px 9px;
+  background: #0d0e10;
+  color: #e5e7eb;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  border: 1px solid #3a3d42;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 2000;
+  transition: opacity 0.12s ease, visibility 0s;
+}
+.nt-tip:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0.55s;
+}
+
 /* 文件树节点（暗色） */
 .fs-node {
   padding-top: 3px;
@@ -171,3 +206,11 @@
   color: #fff !important;
   background: #b02a37;
 }
+
+/* 终端右侧工具栏：小分屏时可滚动而不外溢，隐藏滚动条 */
+.nt-toolrail::-webkit-scrollbar { width: 0; height: 0; }
+.nt-toolrail { scrollbar-width: none; }
+
+/* 分屏格顶部终端标签条：锁定高度、隐藏横向滚动条，保持各布局一致 */
+.nt-panestrip::-webkit-scrollbar { height: 0; width: 0; }
+.nt-panestrip { scrollbar-width: none; }

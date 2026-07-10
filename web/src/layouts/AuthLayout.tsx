@@ -8,6 +8,8 @@ import { GROUPS, MENU_META } from '../menus'
 import { iconOf } from '../menu-icons'
 import { TOKEN_KEY } from '../api/client'
 import { Spinner } from '../ui'
+import { THEMES, useUITheme, setUITheme, themeSupportsDark } from '../store/theme'
+import { COLOR_MODES, useColorMode, setColorMode } from '../store/colorMode'
 
 // 顶级（无分组）菜单归到「主导航」分类。
 const TOP_CATEGORY = '主导航'
@@ -17,6 +19,8 @@ export default function AuthLayout() {
   const nav = useNavigate()
   const loc = useLocation()
   const [, setAccount] = useAtom(accountAtom)
+  const uiTheme = useUITheme()
+  const colorMode = useColorMode()
 
   const { data: account, isLoading } = useQuery({
     queryKey: ['account'],
@@ -104,6 +108,75 @@ export default function AuthLayout() {
           </div>
 
           <div className="header-content-right">
+            {/* 主题切换器 */}
+            <div className="header-element dropdown">
+              <a
+                href="#"
+                onClick={(e) => e.preventDefault()}
+                className="header-link dropdown-toggle no-caret"
+                data-bs-toggle="dropdown"
+                data-bs-auto-close="outside"
+                aria-expanded="false"
+                aria-label="切换主题"
+                title="切换主题"
+              >
+                <i className="bx bx-palette header-link-icon" />
+              </a>
+              <ul className="dropdown-menu dropdown-menu-end" style={{ minWidth: 200 }}>
+                <li>
+                  <span className="dropdown-item-text text-muted small">选择主题</span>
+                </li>
+                <li>
+                  <hr className="dropdown-divider" />
+                </li>
+                {THEMES.map((t) => (
+                  <li key={t.id}>
+                    <a
+                      href="#"
+                      className={`dropdown-item theme-switch-item d-flex align-items-center gap-2 ${uiTheme === t.id ? 'active' : ''}`}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setUITheme(t.id)
+                      }}
+                    >
+                      <i className={`bx ${t.icon} fs-16`} />
+                      <span className="flex-grow-1">{t.name}</span>
+                      {uiTheme === t.id && <i className="bx bx-check fs-18" />}
+                    </a>
+                  </li>
+                ))}
+                <li>
+                  <hr className="dropdown-divider" />
+                </li>
+                <li>
+                  <span className="dropdown-item-text text-muted small">
+                    颜色模式
+                    {!themeSupportsDark(uiTheme) && '（当前主题仅浅色）'}
+                  </span>
+                </li>
+                {COLOR_MODES.map((m) => {
+                  const disabled = !themeSupportsDark(uiTheme)
+                  return (
+                    <li key={m.id}>
+                      <a
+                        href="#"
+                        aria-disabled={disabled}
+                        className={`dropdown-item theme-switch-item d-flex align-items-center gap-2 ${colorMode === m.id ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (!disabled) setColorMode(m.id)
+                        }}
+                      >
+                        <i className={`bx ${m.icon} fs-16`} />
+                        <span className="flex-grow-1">{m.name}</span>
+                        {colorMode === m.id && <i className="bx bx-check fs-18" />}
+                      </a>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+
             {/* 用户下拉 */}
             <div className="header-element dropdown">
               <a

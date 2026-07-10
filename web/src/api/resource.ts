@@ -63,6 +63,8 @@ export interface Asset {
 export interface GroupNode {
   key: string
   title: string
+  icon?: string // boxicons 类名（空=默认 bx-folder）
+  iconColor?: string // #hex（空=默认琥珀）
   children?: GroupNode[]
 }
 
@@ -126,6 +128,16 @@ export interface SiteSettings {
 export const siteApi = {
   get: (): Promise<SiteSettings> => api.get('/admin/site-settings'),
   save: (data: SiteSettings) => api.put('/admin/site-settings', data),
+}
+
+// 会话保活设置（系统设置 → 会话保活），存 Setting KV，运行时生效、无需重启。
+export interface SessionSettings {
+  ttl: string        // 分离会话保活时长，如 "12h"
+  scrollback: string // 回滚缓冲大小，如 "256k"
+}
+export const sessionSettingsApi = {
+  get: (): Promise<SessionSettings> => api.get('/admin/session-settings'),
+  save: (data: SessionSettings) => api.put('/admin/session-settings', data),
 }
 
 export const guacdApi = {

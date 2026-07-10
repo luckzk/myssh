@@ -111,15 +111,11 @@ func (h *Handler) watchSession(c echo.Context) error {
 	return web.OK(c, map[string]any{"token": token, "url": watchURL})
 }
 
-// joinViewer 以只读观战身份接入既有会话（不 DialSSH）。
+// joinViewer 以只读观战身份附着到既有 LiveSession（不 DialSSH，输入被丢弃）。
 func (h *Handler) joinViewer(c echo.Context, sessionID, token string) error {
 	sid, ok := h.resolveJoin(token)
 	if !ok || sid != sessionID {
 		return web.Fail(c, 200, 403, "无效的观战令牌")
-	}
-	var sess model.ConnSession
-	if err := h.store.DB.First(&sess, "id = ?", sessionID).Error; err != nil {
-		return web.Fail(c, 200, 404, "会话不存在")
 	}
 	ws, err := h.upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
@@ -127,21 +123,14 @@ func (h *Handler) joinViewer(c echo.Context, sessionID, token string) error {
 	}
 	defer ws.Close()
 
-	group := h.getOrCreateGroup(sessionID)
-	group.add(ws)
-	defer group.remove(ws)
-
 	_ = ws.WriteMessage(websocket.TextMessage,
 		[]byte(gateway.EncodeData("\x1b[33m== 只读观战模式（输入已禁用）==\x1b[0m\r\n")))
-	if sess.Status != "connected" {
+	live := h.getLive(sessionID)
+	if live == nil {
 		_ = ws.WriteMessage(websocket.TextMessage,
 			[]byte(gateway.EncodeData("\x1b[31m会话当前不在线。\x1b[0m\r\n")))
+		return nil
 	}
-
-	// 丢弃观战者输入，直到其断开或主会话结束（closeAll 会关闭此 ws）。
-	for {
-		if _, _, err := ws.ReadMessage(); err != nil {
-			return nil
-		}
-	}
+	live.attach(ws, false) // 只读附着，阻塞至断开或会话结束
+	return nil
 }

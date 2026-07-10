@@ -1,0 +1,233 @@
+/* ============================================================
+   黏土拟态（Claymorphism）主题 — 完整趣味版（仅浅色）
+   作用域：[data-ui-theme="clay"]（仅后台外壳；深色终端工作区不受影响）
+   特征：多色粉彩 + 非纯白底 + 大圆角(24/18/16) + 内高光/外投影双层黏土阴影
+        + Nunito 圆润字体 + 弹性回弹按压 + 背景漂浮 blob
+   ============================================================ */
+
+[data-ui-theme='clay'] {
+  /* 粉彩调色板 */
+  --clay-bg: #f1eef9; /* 非纯白·薰衣草粉底 */
+  --clay-surface: #ffffff;
+  --clay-ink: #332f3a;
+  --clay-muted: #6e6976;
+  --clay-primary: #7c3aed; /* 主 CTA（白字可达 4.5:1） */
+  --clay-primary-2: #a78bfa;
+  --clay-primary-soft: #ece5fb;
+  --clay-peach: #fdbcb4;
+  --clay-blue: #add8e6;
+  --clay-mint: #b6f2c8;
+  --clay-lilac: #e6e6fa;
+
+  /* 圆角 */
+  --clay-r-card: 24px;
+  --clay-r-btn: 18px;
+  --clay-r-input: 16px;
+  --clay-r-pill: 999px;
+
+  /* 黏土阴影：外投影 + 外高光（凸起） */
+  --clay-out: 10px 10px 24px rgba(124, 58, 237, 0.16), -8px -8px 20px rgba(255, 255, 255, 0.9);
+  /* 表面内高光（充气感） */
+  --clay-inflate: inset 2px 2px 3px rgba(255, 255, 255, 0.85), inset -3px -3px 8px rgba(124, 58, 237, 0.08);
+  /* 凹陷（输入框按下感） */
+  --clay-inset: inset 5px 5px 10px rgba(124, 58, 237, 0.12), inset -4px -4px 8px rgba(255, 255, 255, 0.9);
+  /* 弹性回弹曲线 */
+  --clay-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --bs-border-radius: 18px;
+  --bs-border-radius-sm: 14px;
+  --bs-border-radius-lg: 24px;
+}
+
+/* ---- 字体（Nunito 圆润） ---- */
+[data-ui-theme='clay'] body,
+[data-ui-theme='clay'] .btn,
+[data-ui-theme='clay'] .form-control,
+[data-ui-theme='clay'] .form-select,
+[data-ui-theme='clay'] input,
+[data-ui-theme='clay'] button,
+[data-ui-theme='clay'] .side-menu__label,
+[data-ui-theme='clay'] .dropdown-item {
+  font-family: 'Nunito', 'Inter', system-ui, sans-serif !important;
+}
+[data-ui-theme='clay'] .page-title,
+[data-ui-theme='clay'] .card-title,
+[data-ui-theme='clay'] h1,
+[data-ui-theme='clay'] h2,
+[data-ui-theme='clay'] h3,
+[data-ui-theme='clay'] h4,
+[data-ui-theme='clay'] h5,
+[data-ui-theme='clay'] h6 {
+  font-family: 'Nunito', 'Inter', sans-serif !important;
+  font-weight: 800 !important;
+  color: var(--clay-ink);
+}
+
+/* ---- 全局底色 + 文本 ---- */
+[data-ui-theme='clay'] body {
+  background-color: var(--clay-bg) !important;
+  background-image: none !important;
+  color: var(--clay-ink);
+}
+/* 内容区透明，让 body 底色 + 漂浮 blob 透出（白卡片浮于其上） */
+[data-ui-theme='clay'] .main-content.app-content {
+  background-color: transparent !important;
+  background-image: none !important;
+  color: var(--clay-ink);
+}
+
+/* ---- 背景漂浮 blob（固定在视口后方，柔和粉彩） ----
+   用 z-index:-1 稳妥置于所有内容之下（正 z-index 会盖住非定位的内容块）。 */
+[data-ui-theme='clay'] body::before {
+  content: '';
+  position: fixed;
+  inset: -20vmax;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38vmax 38vmax at 12% 18%, rgba(253, 188, 180, 0.5), transparent 60%),
+    radial-gradient(34vmax 34vmax at 88% 12%, rgba(173, 216, 230, 0.5), transparent 60%),
+    radial-gradient(40vmax 40vmax at 78% 88%, rgba(182, 242, 200, 0.45), transparent 62%),
+    radial-gradient(30vmax 30vmax at 22% 82%, rgba(230, 230, 250, 0.6), transparent 60%);
+  filter: blur(20px);
+  animation: clay-drift 22s ease-in-out infinite alternate;
+}
+@keyframes clay-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(0, -3%, 0) scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ui-theme='clay'] body::before {
+    animation: none;
+  }
+}
+
+/* ---- 顶栏 / 侧栏 ---- */
+[data-ui-theme='clay'] .app-header {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(8px);
+  border-bottom: none !important;
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.08) !important;
+}
+[data-ui-theme='clay'] .app-sidebar,
+[data-ui-theme='clay'] .main-sidebar-header {
+  background-color: #f6f4fc !important;
+  border-right: none !important;
+  border-bottom: none !important;
+}
+[data-ui-theme='clay'] .header-logo span[style*='gradient'] {
+  background: linear-gradient(135deg, var(--clay-primary-2), var(--clay-primary)) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--clay-out);
+}
+
+/* ---- 卡片 ---- */
+[data-ui-theme='clay'] .card,
+[data-ui-theme='clay'] .card.custom-card {
+  background-color: var(--clay-surface) !important;
+  border: none !important;
+  border-radius: var(--clay-r-card) !important;
+  box-shadow: var(--clay-out) !important;
+}
+[data-ui-theme='clay'] .card-header {
+  background-color: transparent !important;
+  border-bottom: 1px solid rgba(124, 58, 237, 0.08) !important;
+}
+
+/* ---- 按钮：凸起黏土 + 弹性按压 ---- */
+[data-ui-theme='clay'] .btn {
+  border: none !important;
+  border-radius: var(--clay-r-btn) !important;
+  font-weight: 700 !important;
+  box-shadow: var(--clay-out) !important;
+  transition: transform 0.18s var(--clay-bounce), box-shadow 0.18s ease, filter 0.18s ease !important;
+}
+[data-ui-theme='clay'] .btn:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+[data-ui-theme='clay'] .btn:active {
+  transform: scale(0.96);
+  box-shadow: var(--clay-inset) !important;
+}
+[data-ui-theme='clay'] .btn-primary {
+  background: linear-gradient(135deg, var(--clay-primary-2), var(--clay-primary)) !important;
+  color: #fff !important;
+}
+[data-ui-theme='clay'] .btn-light,
+[data-ui-theme='clay'] .btn-secondary,
+[data-ui-theme='clay'] .btn-outline-primary {
+  background: var(--clay-lilac) !important;
+  color: var(--clay-primary) !important;
+}
+
+/* ---- 侧栏菜单：粉彩胶囊高亮 ---- */
+[data-ui-theme='clay'] .side-menu__item {
+  border-radius: 16px !important;
+  transition: background-color 0.18s ease, box-shadow 0.18s var(--clay-bounce) !important;
+}
+[data-ui-theme='clay'] .side-menu__item.active {
+  background: var(--clay-lilac) !important;
+  background-image: none !important;
+  color: var(--clay-primary) !important;
+  box-shadow: var(--clay-out) !important;
+}
+[data-ui-theme='clay'] .side-menu__item.active .side-menu__icon,
+[data-ui-theme='clay'] .side-menu__item.active .side-menu__label {
+  color: var(--clay-primary) !important;
+}
+[data-ui-theme='clay'] .side-menu__item:hover {
+  background: rgba(230, 230, 250, 0.6) !important;
+}
+
+/* ---- 表单：凹陷黏土 ---- */
+[data-ui-theme='clay'] .form-control,
+[data-ui-theme='clay'] .form-select,
+[data-ui-theme='clay'] .input-group-text {
+  border: none !important;
+  border-radius: var(--clay-r-input) !important;
+  background-color: #faf9fe !important;
+  box-shadow: var(--clay-inset) !important;
+}
+[data-ui-theme='clay'] .form-control:focus,
+[data-ui-theme='clay'] .form-select:focus {
+  box-shadow: var(--clay-inset), 0 0 0 3px rgba(124, 58, 237, 0.18) !important;
+}
+
+/* ---- 下拉 / 模态 / 抽屉 ---- */
+[data-ui-theme='clay'] .dropdown-menu,
+[data-ui-theme='clay'] .modal-content,
+[data-ui-theme='clay'] .offcanvas {
+  border: none !important;
+  border-radius: var(--clay-r-card) !important;
+  background-color: var(--clay-surface) !important;
+  box-shadow: var(--clay-out) !important;
+}
+
+/* ---- 徽章：粉彩胶囊 ---- */
+[data-ui-theme='clay'] .badge {
+  border-radius: var(--clay-r-pill) !important;
+  font-weight: 700 !important;
+  padding: 0.35em 0.7em !important;
+}
+
+/* ---- 表格：圆润表头 + 柔和分隔 ---- */
+[data-ui-theme='clay'] .table > thead {
+  background-color: rgba(230, 230, 250, 0.5) !important;
+}
+[data-ui-theme='clay'] .table > :not(caption) > * > * {
+  border-bottom-color: rgba(124, 58, 237, 0.08) !important;
+}
+
+/* ---- 主题切换下拉当前项 ---- */
+[data-ui-theme='clay'] .dropdown-item.theme-switch-item.active,
+[data-ui-theme='clay'] .dropdown-item.theme-switch-item.active:hover,
+[data-ui-theme='clay'] .dropdown-item.theme-switch-item.active:focus {
+  background-color: var(--clay-primary-soft) !important;
+  color: var(--clay-primary) !important;
+  border-radius: 12px !important;
+}

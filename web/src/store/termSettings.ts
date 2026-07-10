@@ -1,5 +1,12 @@
 import { useSyncExternalStore } from 'react'
 
+// 关键字高亮规则：命中输出中的关键字/正则时，用指定颜色着色。
+export interface HighlightRule {
+  pattern: string // 关键字或正则
+  color: string // #rrggbb
+  regex?: boolean // pattern 是否按正则解析（否则按字面量 + 词边界）
+}
+
 // 终端偏好（系统设置 → 鼠标/键盘/外观）。localStorage 持久，跨标签页生效。
 export interface TermSettings {
   selectionCopy: boolean // 选中即复制
@@ -9,6 +16,9 @@ export interface TermSettings {
   theme: string // 终端配色（THEMES 的 key）
   fontSize: number // 字号
   fontFamily: string // 字体
+  highlightEnabled: boolean // 关键字高亮开关
+  highlightRules: HighlightRule[] // 高亮规则
+  dirFollow: boolean // 目录跟随：注入 PROMPT_COMMAND(OSC7) 让文件管理跟随终端 cwd；关闭则不注入
 }
 
 // 终端配色预设（xterm ITheme 子集）。
@@ -33,6 +43,13 @@ export const THEMES: Record<string, TermTheme> = {
   oneDark: { label: 'One Dark', theme: { background: '#282c34', foreground: '#abb2bf', cursor: '#528bff', selectionBackground: '#3e4451', red: '#e06c75', green: '#98c379', yellow: '#e5c07b', blue: '#61afef', magenta: '#c678dd', cyan: '#56b6c2' } },
 }
 
+// 默认高亮规则：错误类→红，警告类→黄，成功类→绿。
+export const DEFAULT_HIGHLIGHT_RULES: HighlightRule[] = [
+  { pattern: 'error|fail(ed|ure)?|fatal|exception|denied|refused', color: '#ff5c5c', regex: true },
+  { pattern: 'warn(ing)?|deprecated|timeout', color: '#f1c40f', regex: true },
+  { pattern: 'success|succeeded|done|passed|\\bok\\b|ready|active', color: '#2ecc71', regex: true },
+]
+
 const KEY = 'nt-term-settings'
 const DEFAULTS: TermSettings = {
   selectionCopy: false,
@@ -42,6 +59,9 @@ const DEFAULTS: TermSettings = {
   theme: 'dark',
   fontSize: 14,
   fontFamily: FONT_FAMILIES[0],
+  highlightEnabled: true,
+  highlightRules: DEFAULT_HIGHLIGHT_RULES,
+  dirFollow: true,
 }
 
 export function getTermSettings(): TermSettings {
