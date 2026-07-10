@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { assetApi, assetGroupApi, type Asset, type GroupNode } from '../../api/resource'
 import GroupIcon from '../../components/GroupIcon'
 import AssetIcon from '../../components/AssetIcon'
@@ -29,8 +29,13 @@ export default function AssetTree({ currentAssetId, onOpen }: Props) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [kw, setKw] = useState('')
 
-  const { data: assets = [] } = useQuery({ queryKey: ['assets-all'], queryFn: assetApi.list })
+  const qc = useQueryClient()
+  const { data: assets = [], isFetching } = useQuery({ queryKey: ['assets-all'], queryFn: assetApi.list })
   const { data: groups = [] } = useQuery({ queryKey: ['asset-groups'], queryFn: assetGroupApi.tree })
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['assets-all'] })
+    qc.invalidateQueries({ queryKey: ['asset-groups'] })
+  }
 
   const open = onOpen ?? defaultOpen
   const q = kw.trim().toLowerCase()
@@ -105,9 +110,14 @@ export default function AssetTree({ currentAssetId, onOpen }: Props) {
     <div style={{ width: 240, background: '#1E1F22', borderRight: '1px solid #34363a', color: '#d4d4d4', flexShrink: 0, overflowY: 'auto' }} className="d-flex flex-column">
       <div className="d-flex align-items-center justify-content-between px-3 py-2" style={{ borderBottom: '1px solid #34363a' }}>
         <span className="fw-medium" style={{ color: '#e5e7eb' }}>资源</span>
-        <button className="term-tool" style={{ width: 28, height: 28, fontSize: 16 }} title="折叠" onClick={() => setCollapsed(true)}>
-          <i className="bx bx-chevrons-left" />
-        </button>
+        <div className="d-flex align-items-center gap-1">
+          <button className="term-tool" style={{ width: 28, height: 28, fontSize: 16 }} title="刷新资源列表" onClick={refresh}>
+            <i className={`bx bx-refresh${isFetching ? ' bx-spin' : ''}`} />
+          </button>
+          <button className="term-tool" style={{ width: 28, height: 28, fontSize: 16 }} title="折叠" onClick={() => setCollapsed(true)}>
+            <i className="bx bx-chevrons-left" />
+          </button>
+        </div>
       </div>
       {/* 资源搜索 */}
       <div className="px-2 py-2" style={{ borderBottom: '1px solid #34363a' }}>

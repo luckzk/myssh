@@ -222,6 +222,9 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
   const ql = q.toLowerCase()
   const info = ov.data?.info
   const notAvail = ov.data && !ov.data.available
+  const unavailText = ov.data?.reason === 'not-installed' ? '该主机未安装 Docker 或 Podman'
+    : ov.data?.reason === 'podman-no-shim' ? '检测到 Podman，但缺少 docker 兼容命令。可安装 podman-docker，或建软链：ln -s $(command -v podman) /usr/local/bin/docker'
+      : '未获取到 Docker（该主机未安装或无权限）'
 
   return (
     <div className="d-flex flex-column" style={{ position: 'relative', height: '100%', width: '100%', background: C.bg, color: C.text, borderLeft: mode === 'panel' ? `1px solid ${C.border}` : undefined }}>
@@ -254,7 +257,7 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
 
       <div className="flex-grow-1 p-2" style={{ overflowY: 'auto', minHeight: 0, maxWidth: mode === 'page' ? 1100 : undefined, width: '100%', margin: mode === 'page' ? '0 auto' : undefined }}>
         {notAvail ? (
-          <Hint danger>未获取到 Docker（该主机未安装或无权限）</Hint>
+          <Hint danger>{unavailText}</Hint>
         ) : section === 'overview' ? (
           <OverviewSection assetId={assetId} info={info} daemonOk={ov.data?.daemonOk} onPrune={(t) => run(t, 'prune', undefined, undefined, true)} />
         ) : section === 'compose' ? (

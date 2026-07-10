@@ -103,7 +103,12 @@ const dockerHead = "command -v docker >/dev/null 2>&1 || { echo no_docker; exit 
 
 // ---- 概览 ----
 
-const dockerOverviewScript = dockerHead + `docker ps >/dev/null 2>&1 && echo ok=1 || echo ok=0
+// 无 docker 时进一步区分原因：装了 podman 但缺 docker 兼容命令 vs 完全未装容器引擎。
+const dockerOverviewScript = `if ! command -v docker >/dev/null 2>&1; then
+  if command -v podman >/dev/null 2>&1; then echo reason=podman-no-shim; else echo reason=not-installed; fi
+  exit 0
+fi
+docker ps >/dev/null 2>&1 && echo ok=1 || echo ok=0
 echo "ver=$(docker version --format '{{.Server.Version}}' 2>/dev/null)"
 echo "running=$(docker ps -q 2>/dev/null | wc -l | tr -d ' ')"
 echo "total=$(docker ps -aq 2>/dev/null | wc -l | tr -d ' ')"
@@ -117,8 +122,14 @@ func (h *Handler) dockerOverview(c echo.Context) error {
 	if err != nil {
 		return fail(c, err)
 	}
-	if strings.Contains(out, "no_docker") {
-		return web.OK(c, map[string]any{"available": false})
+	if strings.Contains(out, "reason=") {
+		reason := "not-installed"
+		for _, ln := range strings.Split(out, "\n") {
+			if k, v, ok := strings.Cut(strings.TrimSpace(ln), "="); ok && k == "reason" {
+				reason = v
+			}
+		}
+		return web.OK(c, map[string]any{"available": false, "reason": reason})
 	}
 	type info struct {
 		ServerVersion string `json:"serverVersion"`

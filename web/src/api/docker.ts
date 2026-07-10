@@ -86,7 +86,7 @@ export interface DockerActionReq {
 }
 
 export const dockerApi = {
-  overview: (assetId: string): Promise<{ available: boolean; daemonOk?: boolean; info?: DockerOverview }> =>
+  overview: (assetId: string): Promise<{ available: boolean; daemonOk?: boolean; reason?: string; info?: DockerOverview }> =>
     api.get(`/access/docker/${assetId}/overview`),
   containers: (assetId: string): Promise<{ available: boolean; containers?: DockerContainer[] }> =>
     api.get(`/access/docker/${assetId}/containers`),
