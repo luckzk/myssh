@@ -68,7 +68,7 @@ func (h *Handler) dockerAction(c echo.Context) error {
 	if err != nil {
 		return fail(c, err)
 	}
-	out, runErr := gateway.RunSSHCommand(*target, "docker "+req.Action+" "+req.ID+" 2>&1", h.sshOptionsForUser(u.ID))
+	out, runErr := h.sshPool.Run(poolKey(u.ID, target), *target, "docker "+req.Action+" "+req.ID+" 2>&1", h.sshOptionsForUser(u.ID))
 	if runErr != nil {
 		return web.Fail(c, 200, 500, "操作失败: "+strings.TrimSpace(out))
 	}
@@ -81,7 +81,7 @@ func (h *Handler) runOnSession(c echo.Context, script string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	out, runErr := gateway.RunSSHCommand(*target, script, h.sshOptionsForUser(u.ID))
+	out, runErr := h.sshPool.Run(poolKey(u.ID, target), *target, script, h.sshOptionsForUser(u.ID))
 	if runErr != nil && strings.TrimSpace(out) == "" {
 		return "", echo.NewHTTPError(500, "采集失败: "+runErr.Error())
 	}

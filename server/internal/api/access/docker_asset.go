@@ -42,11 +42,17 @@ func (h *Handler) dockerRunAsset(c echo.Context, script string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	out, runErr := h.dockerPool.Run(u.ID+":"+assetID, *target, script, h.sshOptionsForUser(u.ID))
+	out, runErr := h.sshPool.Run(poolKey(u.ID, target), *target, script, h.sshOptionsForUser(u.ID))
 	if runErr != nil && strings.TrimSpace(out) == "" {
 		return "", echo.NewHTTPError(500, "采集失败: "+runErr.Error())
 	}
 	return out, nil
+}
+
+// poolKey 连接池键：同一 App 用户 + 同一远程目标(host:port:user) 复用一条 SSH 连接，
+// 让 docker 管理器与主机监控共享连接。
+func poolKey(userID string, t *gateway.SSHTarget) string {
+	return userID + "|" + t.User + "@" + t.Host + ":" + strconv.Itoa(t.Port)
 }
 
 // splitPipe 逐行解析 `{{.A}}|{{.B}}` 管道模板输出。用显式字段模板（而非 {{json .}}）
@@ -106,18 +112,21 @@ const dockerHead = "command -v docker >/dev/null 2>&1 || { echo no_docker; exit 
 // ---- 概览 ----
 
 // 无 docker 时进一步区分原因：装了 podman 但缺 docker 兼容命令 vs 完全未装容器引擎。
+// 各计数命令并行执行（后台 & + wait）；每项用单条 echo 输出（<PIPE_BUF 原子写，不交错），
+// 顺序无关（parser 按 key=value 解析）。把 overview 从 ~8 次顺序调用降到并行 max。
 const dockerOverviewScript = `if ! command -v docker >/dev/null 2>&1; then
   if command -v podman >/dev/null 2>&1; then echo reason=podman-no-shim; else echo reason=not-installed; fi
   exit 0
 fi
-docker ps >/dev/null 2>&1 && echo ok=1 || echo ok=0
-echo "ver=$(docker version --format '{{.Server.Version}}' 2>/dev/null)"
-echo "running=$(docker ps -q 2>/dev/null | wc -l | tr -d ' ')"
-echo "total=$(docker ps -aq 2>/dev/null | wc -l | tr -d ' ')"
-echo "images=$(docker images -q 2>/dev/null | wc -l | tr -d ' ')"
-echo "volumes=$(docker volume ls -q 2>/dev/null | wc -l | tr -d ' ')"
-echo "networks=$(docker network ls -q 2>/dev/null | wc -l | tr -d ' ')"
-echo "extra=$(docker info --format '{{.Driver}};{{.OperatingSystem}};{{.Architecture}};{{.NCPU}};{{.MemTotal}}' 2>/dev/null)"`
+{ docker ps >/dev/null 2>&1 && echo ok=1 || echo ok=0; } &
+{ echo "ver=$(docker version --format '{{.Server.Version}}' 2>/dev/null)"; } &
+{ echo "running=$(docker ps -q 2>/dev/null | wc -l | tr -d ' ')"; } &
+{ echo "total=$(docker ps -aq 2>/dev/null | wc -l | tr -d ' ')"; } &
+{ echo "images=$(docker images -q 2>/dev/null | wc -l | tr -d ' ')"; } &
+{ echo "volumes=$(docker volume ls -q 2>/dev/null | wc -l | tr -d ' ')"; } &
+{ echo "networks=$(docker network ls -q 2>/dev/null | wc -l | tr -d ' ')"; } &
+{ echo "extra=$(docker info --format '{{.Driver}};{{.OperatingSystem}};{{.Architecture}};{{.NCPU}};{{.MemTotal}}' 2>/dev/null)"; } &
+wait`
 
 func (h *Handler) dockerOverview(c echo.Context) error {
 	out, err := h.dockerRunAsset(c, dockerOverviewScript)

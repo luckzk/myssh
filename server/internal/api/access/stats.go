@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dushixiang/next-terminal-clone/server/internal/gateway"
 	"github.com/dushixiang/next-terminal-clone/server/internal/model"
 	"github.com/dushixiang/next-terminal-clone/server/internal/web"
 	"github.com/labstack/echo/v4"
@@ -57,7 +56,7 @@ func (h *Handler) stats(c echo.Context) error {
 	if err != nil {
 		return web.Fail(c, 200, 500, "凭证解析失败: "+err.Error())
 	}
-	out, runErr := gateway.RunSSHCommand(*target, statsScript, h.sshOptionsForUser(u.ID))
+	out, runErr := h.sshPool.Run(poolKey(u.ID, target), *target, statsScript, h.sshOptionsForUser(u.ID))
 	if runErr != nil && strings.TrimSpace(out) == "" {
 		return web.Fail(c, 200, 500, "采集失败: "+runErr.Error())
 	}

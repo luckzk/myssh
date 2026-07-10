@@ -8,8 +8,8 @@ import (
 )
 
 // SSHPool 复用 SSH 客户端跑短命令，避免每次 REST 轮询都重新拨号（对高延迟远程主机尤其明显）。
-// 按 key（通常 userID:assetID）缓存一个 *ssh.Client；空闲超时后回收。NewSession 失败视为连接失效，重拨一次。
-// 仅用于短命令（docker ps/stats/inspect 等）；长连接流（logs/exec）仍各自独立拨号。
+// 按 key（通常 userID@host:port）缓存一个 *ssh.Client；空闲超时后回收；后台 keepalive 保温并探活。
+// 仅用于短命令（docker ps/stats/inspect、主机监控等）；长连接流（logs/exec）仍各自独立拨号。
 type SSHPool struct {
 	mu    sync.Mutex
 	conns map[string]*pooledClient
@@ -19,18 +19,19 @@ type SSHPool struct {
 type pooledClient struct {
 	client   *ssh.Client
 	lastUsed time.Time
+	stop     chan struct{} // 关闭以停止其 keepalive 协程
 }
 
 func NewSSHPool(ttl time.Duration) *SSHPool {
 	if ttl <= 0 {
-		ttl = 3 * time.Minute
+		ttl = 5 * time.Minute
 	}
 	p := &SSHPool{conns: map[string]*pooledClient{}, ttl: ttl}
 	go p.reap()
 	return p
 }
 
-// Run 在池化连接上执行一条命令，返回合并的 stdout+stderr。dialFn 在缺连接时拨号。
+// Run 在池化连接上执行一条命令，返回合并的 stdout+stderr。缺连接时拨号。
 func (p *SSHPool) Run(key string, target SSHTarget, cmd string, opts ...SSHOptions) (string, error) {
 	client, fresh, err := p.get(key, target, opts)
 	if err != nil {
@@ -75,18 +76,43 @@ func (p *SSHPool) get(key string, target SSHTarget, opts []SSHOptions) (*ssh.Cli
 		_ = client.Close()
 		return pc.client, false, nil
 	}
-	p.conns[key] = &pooledClient{client: client, lastUsed: time.Now()}
+	pc := &pooledClient{client: client, lastUsed: time.Now(), stop: make(chan struct{})}
+	p.conns[key] = pc
+	go p.keepAlive(key, pc)
 	p.mu.Unlock()
 	return client, true, nil
 }
 
+// drop 移除并关闭指定连接（若仍是当前 key 对应的那条）。
 func (p *SSHPool) drop(key string, client *ssh.Client) {
 	p.mu.Lock()
-	if pc := p.conns[key]; pc != nil && pc.client == client {
+	pc := p.conns[key]
+	if pc != nil && pc.client == client {
 		delete(p.conns, key)
+		close(pc.stop)
+		p.mu.Unlock()
+		_ = client.Close()
+		return
 	}
 	p.mu.Unlock()
 	_ = client.Close()
+}
+
+// keepAlive 每 60s 发一次 keepalive 保持连接热/探活；失败即剔除。
+func (p *SSHPool) keepAlive(key string, pc *pooledClient) {
+	t := time.NewTicker(60 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-pc.stop:
+			return
+		case <-t.C:
+			if _, _, err := pc.client.SendRequest("keepalive@openssh.com", true, nil); err != nil {
+				p.drop(key, pc.client)
+				return
+			}
+		}
+	}
 }
 
 func (p *SSHPool) reap() {
@@ -97,6 +123,7 @@ func (p *SSHPool) reap() {
 		p.mu.Lock()
 		for k, pc := range p.conns {
 			if now.Sub(pc.lastUsed) > p.ttl {
+				close(pc.stop)
 				_ = pc.client.Close()
 				delete(p.conns, k)
 			}

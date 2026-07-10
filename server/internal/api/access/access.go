@@ -50,7 +50,7 @@ type Handler struct {
 	lives      map[string]*liveSession
 	sessionTTL time.Duration
 	scrollback int
-	dockerPool *gateway.SSHPool
+	sshPool  *gateway.SSHPool
 }
 
 func New(s *store.Store, cfg config.Config, c *crypto.Cipher, rec *audit.Recorder, reg *gateway.Registry) *Handler {
@@ -71,7 +71,7 @@ func New(s *store.Store, cfg config.Config, c *crypto.Cipher, rec *audit.Recorde
 		lives:       make(map[string]*liveSession),
 		sessionTTL:  ttl,
 		scrollback:  scrollback,
-		dockerPool:  gateway.NewSSHPool(3 * time.Minute),
+		sshPool:     gateway.NewSSHPool(3 * time.Minute),
 		upgrader: websocket.Upgrader{
 			CheckOrigin:     func(r *http.Request) bool { return web.OriginAllowed(r, cfg.AllowedOrigins) },
 			ReadBufferSize:  4096,
