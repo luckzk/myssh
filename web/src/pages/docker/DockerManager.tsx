@@ -179,6 +179,16 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
     refetchInterval: section === 'containers' ? 3000 : 8000,
   })
 
+  // 占用率单独异步拉取（docker stats 慢），列表先出、占用率随后补齐
+  const statsQ = useQuery({
+    queryKey: ['docker-cstats', assetId],
+    queryFn: () => dockerApi.containerStats(assetId),
+    enabled: section === 'containers',
+    refetchInterval: 5000,
+  })
+  const statsById: Record<string, any> = {}
+  for (const s of statsQ.data?.stats || []) statsById[s.id] = s
+
   const doRun = async (body: RunReq) => {
     try {
       const r = await dockerApi.run(assetId, body)
@@ -273,7 +283,7 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
               : !list.data ? <Hint>采集中…</Hint>
                 : !list.data.available ? <Hint danger>目标未安装 Docker</Hint>
                   : section === 'containers' ? (
-                    <ContainerList data={(list.data as any).containers || []} ql={ql} mode={mode} busy={busy}
+                    <ContainerList data={(list.data as any).containers || []} stats={statsById} ql={ql} mode={mode} busy={busy}
                       onAction={run} onInspect={(id, name) => setInspect({ id, title: name })}
                       onLogs={openLogs} onExec={openExec} onFiles={(id, name) => setFiles({ id, name })}
                       onRename={(id, cur) => askName('重命名容器', '新名称', cur, (v) => run('container', 'rename', id, v))} />
@@ -372,7 +382,7 @@ function OverviewSection({ assetId, info, daemonOk, onPrune }: { assetId: string
 
 type ActFn = (type: DockerObjType, action: DockerAction, id?: string, name?: string, danger?: boolean) => void
 
-function ContainerList({ data, ql, mode, busy, onAction, onInspect, onLogs, onExec, onFiles, onRename }: { data: any[]; ql: string; mode: 'panel' | 'page'; busy: string; onAction: ActFn; onInspect: (id: string, name: string) => void; onLogs: (id: string, name: string) => void; onExec: (id: string, name: string) => void; onFiles: (id: string, name: string) => void; onRename: (id: string, cur: string) => void }) {
+function ContainerList({ data, stats, ql, mode, busy, onAction, onInspect, onLogs, onExec, onFiles, onRename }: { data: any[]; stats: Record<string, any>; ql: string; mode: 'panel' | 'page'; busy: string; onAction: ActFn; onInspect: (id: string, name: string) => void; onLogs: (id: string, name: string) => void; onExec: (id: string, name: string) => void; onFiles: (id: string, name: string) => void; onRename: (id: string, cur: string) => void }) {
   const shown = data.filter((c) => !ql || c.name.toLowerCase().includes(ql) || (c.image || '').toLowerCase().includes(ql))
   if (shown.length === 0) return <Hint>{data.length ? '无匹配容器' : '暂无容器'}</Hint>
   return (
@@ -382,6 +392,7 @@ function ContainerList({ data, ql, mode, busy, onAction, onInspect, onLogs, onEx
         const paused = ct.state === 'paused'
         const col = running ? '#22c55e' : paused ? '#f59e0b' : C.dim
         const bz = (a: string) => busy === ct.id + a
+        const st = stats[ct.id]
         return (
           <div key={ct.id} className="rounded" style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: `3px solid ${col}`, overflow: 'hidden' }}>
             <div className="p-2">
@@ -396,8 +407,8 @@ function ContainerList({ data, ql, mode, busy, onAction, onInspect, onLogs, onEx
               {ct.ports && <div className="text-truncate mb-1" style={{ color: C.dim, fontSize: 10 }} title={ct.ports}>{ct.ports}</div>}
               {running && (
                 <div className="d-flex align-items-center gap-2 mb-1" style={{ fontSize: 11, color: C.muted }}>
-                  <i className="bx bx-chip" style={{ color: '#6ea8fe' }} /><span style={{ width: 46 }}>{ct.cpu || '-'}</span>
-                  <span className="ms-auto">{ct.memUsage || '-'}</span>
+                  <i className="bx bx-chip" style={{ color: '#6ea8fe' }} /><span style={{ width: 46 }}>{st?.cpu || '—'}</span>
+                  <span className="ms-auto">{st?.memUsage || '…'}</span>
                 </div>
               )}
               <div className="d-flex flex-wrap gap-1 justify-content-end">

@@ -50,6 +50,7 @@ type Handler struct {
 	lives      map[string]*liveSession
 	sessionTTL time.Duration
 	scrollback int
+	dockerPool *gateway.SSHPool
 }
 
 func New(s *store.Store, cfg config.Config, c *crypto.Cipher, rec *audit.Recorder, reg *gateway.Registry) *Handler {
@@ -70,6 +71,7 @@ func New(s *store.Store, cfg config.Config, c *crypto.Cipher, rec *audit.Recorde
 		lives:       make(map[string]*liveSession),
 		sessionTTL:  ttl,
 		scrollback:  scrollback,
+		dockerPool:  gateway.NewSSHPool(3 * time.Minute),
 		upgrader: websocket.Upgrader{
 			CheckOrigin:     func(r *http.Request) bool { return web.OriginAllowed(r, cfg.AllowedOrigins) },
 			ReadBufferSize:  4096,
@@ -99,6 +101,7 @@ func (h *Handler) RegisterAccess(g *echo.Group) {
 	// 资产级 Docker 管理（不依赖已开会话，按 assetId 鉴权）
 	g.GET("/docker/:assetId/overview", h.dockerOverview)
 	g.GET("/docker/:assetId/containers", h.dockerContainers)
+	g.GET("/docker/:assetId/containers/stats", h.dockerContainerStats)
 	g.GET("/docker/:assetId/images", h.dockerImages)
 	g.GET("/docker/:assetId/networks", h.dockerNetworks)
 	g.GET("/docker/:assetId/volumes", h.dockerVolumes)

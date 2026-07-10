@@ -24,6 +24,9 @@ export interface DockerContainer {
   status: string
   ports: string
   createdAt: string
+}
+export interface ContainerStat {
+  id: string
   cpu: string
   memUsage: string
   memPct: number
@@ -90,6 +93,8 @@ export const dockerApi = {
     api.get(`/access/docker/${assetId}/overview`),
   containers: (assetId: string): Promise<{ available: boolean; containers?: DockerContainer[] }> =>
     api.get(`/access/docker/${assetId}/containers`),
+  containerStats: (assetId: string): Promise<{ available: boolean; stats?: ContainerStat[] }> =>
+    api.get(`/access/docker/${assetId}/containers/stats`),
   images: (assetId: string): Promise<{ available: boolean; images?: DockerImage[] }> =>
     api.get(`/access/docker/${assetId}/images`),
   networks: (assetId: string): Promise<{ available: boolean; networks?: DockerNetwork[] }> =>

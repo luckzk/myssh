@@ -34,13 +34,15 @@ func (h *Handler) resolveTargetByAsset(u *model.User, assetID string) (*gateway.
 }
 
 // dockerRunAsset 在资产目标上跑一段脚本，返回 stdout（保留非空输出即使退出码非 0）。
+// 经 SSH 连接池复用连接，避免每次轮询重拨（远程高延迟主机提速明显）。
 func (h *Handler) dockerRunAsset(c echo.Context, script string) (string, error) {
 	u := web.CurrentUser(c)
-	target, _, err := h.resolveTargetByAsset(u, c.Param("assetId"))
+	assetID := c.Param("assetId")
+	target, _, err := h.resolveTargetByAsset(u, assetID)
 	if err != nil {
 		return "", err
 	}
-	out, runErr := gateway.RunSSHCommand(*target, script, h.sshOptionsForUser(u.ID))
+	out, runErr := h.dockerPool.Run(u.ID+":"+assetID, *target, script, h.sshOptionsForUser(u.ID))
 	if runErr != nil && strings.TrimSpace(out) == "" {
 		return "", echo.NewHTTPError(500, "采集失败: "+runErr.Error())
 	}
@@ -182,12 +184,10 @@ func (h *Handler) dockerOverview(c echo.Context) error {
 	return web.OK(c, map[string]any{"available": true, "daemonOk": daemonOk, "info": nfo})
 }
 
-// ---- 容器（ps 合并 stats）----
+// ---- 容器 ----
+// 只跑 docker ps（快）；stats 单列到 /containers/stats（docker stats --no-stream 慢，异步补齐占用率）。
 
-const dockerContainersScript = dockerHead + `echo '%%PS%%'
-docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}|{{.CreatedAt}}' 2>/dev/null
-echo '%%STATS%%'
-docker stats --no-stream --format '{{.ID}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}' 2>/dev/null`
+const dockerContainersScript = dockerHead + `docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}|{{.CreatedAt}}' 2>/dev/null`
 
 func (h *Handler) dockerContainers(c echo.Context) error {
 	out, err := h.dockerRunAsset(c, dockerContainersScript)
@@ -197,35 +197,44 @@ func (h *Handler) dockerContainers(c echo.Context) error {
 	if strings.Contains(out, "no_docker") {
 		return web.OK(c, map[string]any{"available": false})
 	}
-	psSec, statsSec := cutSection(out, "%%PS%%", "%%STATS%%")
 	type container struct {
-		ID        string  `json:"id"`
-		Name      string  `json:"name"`
-		Image     string  `json:"image"`
-		State     string  `json:"state"`
-		Status    string  `json:"status"`
-		Ports     string  `json:"ports"`
-		CreatedAt string  `json:"createdAt"`
-		CPU       string  `json:"cpu"`
-		MemUsage  string  `json:"memUsage"`
-		MemPct    float64 `json:"memPct"`
-	}
-	stats := map[string][]string{}
-	for _, f := range splitPipe(statsSec) {
-		stats[shortID(at(f, 0))] = f
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		Image     string `json:"image"`
+		State     string `json:"state"`
+		Status    string `json:"status"`
+		Ports     string `json:"ports"`
+		CreatedAt string `json:"createdAt"`
 	}
 	list := []container{}
-	for _, f := range splitPipe(psSec) {
-		id := shortID(at(f, 0))
-		ct := container{ID: id, Name: at(f, 1), Image: at(f, 2), State: at(f, 3), Status: at(f, 4), Ports: at(f, 5), CreatedAt: at(f, 6)}
-		if st := stats[id]; st != nil {
-			ct.CPU = at(st, 1)
-			ct.MemUsage = at(st, 2)
-			ct.MemPct = pctFloat(at(st, 3))
-		}
-		list = append(list, ct)
+	for _, f := range splitPipe(out) {
+		list = append(list, container{ID: shortID(at(f, 0)), Name: at(f, 1), Image: at(f, 2), State: at(f, 3), Status: at(f, 4), Ports: at(f, 5), CreatedAt: at(f, 6)})
 	}
 	return web.OK(c, map[string]any{"available": true, "containers": list})
+}
+
+// dockerContainerStats 单独采集容器 CPU/内存占用（慢命令，前端异步补齐）。
+const dockerStatsScript = dockerHead + `docker stats --no-stream --format '{{.ID}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}' 2>/dev/null`
+
+func (h *Handler) dockerContainerStats(c echo.Context) error {
+	out, err := h.dockerRunAsset(c, dockerStatsScript)
+	if err != nil {
+		return fail(c, err)
+	}
+	if strings.Contains(out, "no_docker") {
+		return web.OK(c, map[string]any{"available": false})
+	}
+	type stat struct {
+		ID       string  `json:"id"`
+		CPU      string  `json:"cpu"`
+		MemUsage string  `json:"memUsage"`
+		MemPct   float64 `json:"memPct"`
+	}
+	list := []stat{}
+	for _, f := range splitPipe(out) {
+		list = append(list, stat{ID: shortID(at(f, 0)), CPU: at(f, 1), MemUsage: at(f, 2), MemPct: pctFloat(at(f, 3))})
+	}
+	return web.OK(c, map[string]any{"available": true, "stats": list})
 }
 
 // ---- 镜像 ----
