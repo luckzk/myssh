@@ -45,7 +45,36 @@ export interface DockerVolume {
   driver: string
 }
 
-export type DockerObjType = 'container' | 'image' | 'volume' | 'network' | 'system'
+export interface DockerDfRow {
+  type: string
+  total: string
+  active: string
+  size: string
+  reclaimable: string
+}
+export interface ComposeProject {
+  name: string
+  status: string
+  configFiles: string
+}
+export interface FsEntry {
+  name: string
+  isDir: boolean
+  isLink: boolean
+  size: string
+  mode: string
+}
+export interface RunReq {
+  image: string
+  name?: string
+  ports?: string[]
+  envs?: string[]
+  volumes?: string[]
+  restart?: string
+  command?: string
+}
+
+export type DockerObjType = 'container' | 'image' | 'volume' | 'network' | 'system' | 'builder'
 export type DockerAction =
   | 'start' | 'stop' | 'restart' | 'kill' | 'pause' | 'unpause' | 'rm' | 'rename' | 'create' | 'prune'
 
@@ -71,6 +100,25 @@ export const dockerApi = {
     api.get(`/access/docker/${assetId}/inspect?id=${encodeURIComponent(id)}`),
   action: (assetId: string, body: DockerActionReq): Promise<{ ok: boolean; output?: string }> =>
     api.post(`/access/docker/${assetId}/action`, body),
+  df: (assetId: string): Promise<{ available: boolean; usage?: DockerDfRow[] }> =>
+    api.get(`/access/docker/${assetId}/df`),
+  run: (assetId: string, body: RunReq): Promise<{ ok: boolean; output?: string }> =>
+    api.post(`/access/docker/${assetId}/run`, body),
+  compose: (assetId: string): Promise<{ available: boolean; projects?: ComposeProject[] }> =>
+    api.get(`/access/docker/${assetId}/compose`),
+  composeAction: (assetId: string, body: { configFile: string; action: 'up' | 'down' | 'restart' }): Promise<{ ok: boolean; output?: string }> =>
+    api.post(`/access/docker/${assetId}/compose/action`, body),
+  composeFile: (assetId: string, path: string): Promise<{ content: string }> =>
+    api.get(`/access/docker/${assetId}/compose/file?path=${encodeURIComponent(path)}`),
+  fsLs: (assetId: string, id: string, path: string): Promise<{ available: boolean; path: string; entries?: FsEntry[] }> =>
+    api.get(`/access/docker/${assetId}/fs/ls?id=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}`),
+  fsRead: (assetId: string, id: string, path: string): Promise<{ content: string }> =>
+    api.get(`/access/docker/${assetId}/fs/read?id=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}`),
+  fsDownloadUrl: (assetId: string, id: string, path: string): string => {
+    const token = localStorage.getItem(TOKEN_KEY) || ''
+    const qs = new URLSearchParams({ id, path, token }).toString()
+    return `/api/access/docker/${encodeURIComponent(assetId)}/fs/download?${qs}`
+  },
 }
 
 // Phase 2：流式端点 WS URL 构造器（logs / exec / pull）。token 走 query（浏览器 WS 无法设自定义头）。

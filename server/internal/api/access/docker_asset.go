@@ -2,6 +2,7 @@ package access
 
 import (
 	"encoding/json"
+	"io"
 	"strconv"
 	"strings"
 
@@ -329,10 +330,15 @@ func dockerCmdFor(typ, action, id, name string) string {
 			return "docker rm -f " + id
 		case "rename":
 			return "docker rename " + id + " " + name
+		case "prune":
+			return "docker container prune -f"
 		}
 	case "image":
-		if action == "rm" {
+		switch action {
+		case "rm":
 			return "docker rmi " + id
+		case "prune":
+			return "docker image prune -f"
 		}
 	case "volume":
 		switch action {
@@ -349,10 +355,16 @@ func dockerCmdFor(typ, action, id, name string) string {
 			return "docker network rm " + id
 		case "create":
 			return "docker network create " + name
+		case "prune":
+			return "docker network prune -f"
 		}
 	case "system":
 		if action == "prune" {
 			return "docker system prune -f"
+		}
+	case "builder":
+		if action == "prune" {
+			return "docker builder prune -f"
 		}
 	}
 	return ""
@@ -482,4 +494,292 @@ func (h *Handler) dockerPull(c echo.Context) error {
 	}
 	cmd := dockerStreamGuard + "docker pull " + ref + " 2>&1"
 	return h.dockerStreamStart(c, cmd, false, 0, 0)
+}
+
+// shq 单引号转义，供 run/compose/文件路径等安全拼接到远程 shell 命令。
+func shq(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
+// ---- 磁盘占用 (system df) ----
+
+// dockerDiskUsage 解析 `docker system df` 默认表格（不用 --format：podman 字段名不同会报错）。
+func (h *Handler) dockerDiskUsage(c echo.Context) error {
+	out, err := h.dockerRunAsset(c, dockerHead+"docker system df 2>/dev/null")
+	if err != nil {
+		return fail(c, err)
+	}
+	if strings.Contains(out, "no_docker") {
+		return web.OK(c, map[string]any{"available": false})
+	}
+	type row struct {
+		Type        string `json:"type"`
+		Total       string `json:"total"`
+		Active      string `json:"active"`
+		Size        string `json:"size"`
+		Reclaimable string `json:"reclaimable"`
+	}
+	// 双词类型放前面优先匹配
+	prefixes := []string{"Local Volumes", "Build Cache", "Images", "Containers"}
+	rows := []row{}
+	for _, ln := range strings.Split(out, "\n") {
+		ln = strings.TrimSpace(ln)
+		if ln == "" || strings.HasPrefix(ln, "TYPE") || strings.Contains(ln, "Emulate Docker CLI") {
+			continue
+		}
+		var typ, rest string
+		for _, p := range prefixes {
+			if strings.HasPrefix(ln, p) {
+				typ, rest = p, strings.TrimSpace(ln[len(p):])
+				break
+			}
+		}
+		if typ == "" {
+			continue
+		}
+		f := strings.Fields(rest)
+		rows = append(rows, row{Type: typ, Total: at(f, 0), Active: at(f, 1), Size: at(f, 2), Reclaimable: at(f, 3)})
+	}
+	return web.OK(c, map[string]any{"available": true, "usage": rows})
+}
+
+// ---- 从镜像运行容器 ----
+
+// dockerRunCreate 组装 docker run -d，每个用户字段单引号转义（shq），杜绝注入。
+func (h *Handler) dockerRunCreate(c echo.Context) error {
+	var req struct {
+		Image   string   `json:"image"`
+		Name    string   `json:"name"`
+		Ports   []string `json:"ports"`
+		Envs    []string `json:"envs"`
+		Volumes []string `json:"volumes"`
+		Restart string   `json:"restart"`
+		Command string   `json:"command"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return web.Fail(c, 200, 400, "参数错误")
+	}
+	if !isSafeImageRef(req.Image) {
+		return web.Fail(c, 200, 400, "镜像引用非法")
+	}
+	if req.Name != "" && !isSafeToken(req.Name) {
+		return web.Fail(c, 200, 400, "容器名称非法")
+	}
+	parts := []string{"docker run -d"}
+	if req.Name != "" {
+		parts = append(parts, "--name", shq(req.Name))
+	}
+	appendFlag := func(flag string, vals []string) {
+		for _, v := range vals {
+			if v = strings.TrimSpace(v); v != "" {
+				parts = append(parts, flag, shq(v))
+			}
+		}
+	}
+	appendFlag("-p", req.Ports)
+	appendFlag("-e", req.Envs)
+	appendFlag("-v", req.Volumes)
+	if r := strings.TrimSpace(req.Restart); r != "" {
+		parts = append(parts, "--restart", shq(r))
+	}
+	parts = append(parts, shq(req.Image))
+	for _, tok := range strings.Fields(req.Command) {
+		parts = append(parts, shq(tok))
+	}
+	out, err := h.dockerRunAsset(c, dockerHead+strings.Join(parts, " ")+" 2>&1")
+	if err != nil {
+		return fail(c, err)
+	}
+	if strings.Contains(out, "no_docker") {
+		return web.Fail(c, 200, 400, "目标未安装 Docker")
+	}
+	return web.OK(c, map[string]any{"ok": true, "output": stripNoise(out)})
+}
+
+// ---- Compose 编排 ----
+
+// dockerComposeList `docker compose ls --format json`。无 compose 插件时优雅降级。
+func (h *Handler) dockerComposeList(c echo.Context) error {
+	out, err := h.dockerRunAsset(c, dockerHead+"docker compose ls --format json 2>&1")
+	if err != nil {
+		return fail(c, err)
+	}
+	if strings.Contains(out, "no_docker") || strings.Contains(out, "compose provider") || strings.Contains(out, "is not a docker command") {
+		return web.OK(c, map[string]any{"available": false})
+	}
+	type project struct {
+		Name        string `json:"name"`
+		Status      string `json:"status"`
+		ConfigFiles string `json:"configFiles"`
+	}
+	list := []project{}
+	if js := jsonFrom(out); js != "" {
+		var raw []map[string]any
+		if json.Unmarshal([]byte(js), &raw) == nil {
+			for _, m := range raw {
+				list = append(list, project{Name: str(m, "Name"), Status: str(m, "Status"), ConfigFiles: str(m, "ConfigFiles")})
+			}
+		}
+	}
+	return web.OK(c, map[string]any{"available": true, "projects": list})
+}
+
+// str 从 map 安全取字符串。
+func str(m map[string]any, k string) string {
+	if v, ok := m[k].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// dockerComposeAction up/down/restart 一个 compose 项目（按 configFile 路径）。
+func (h *Handler) dockerComposeAction(c echo.Context) error {
+	var req struct {
+		ConfigFile string `json:"configFile"`
+		Action     string `json:"action"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return web.Fail(c, 200, 400, "参数错误")
+	}
+	if strings.TrimSpace(req.ConfigFile) == "" {
+		return web.Fail(c, 200, 400, "缺少 compose 文件")
+	}
+	var tail string
+	switch req.Action {
+	case "up":
+		tail = "up -d"
+	case "down":
+		tail = "down"
+	case "restart":
+		tail = "restart"
+	default:
+		return web.Fail(c, 200, 400, "不支持的操作")
+	}
+	cmd := "docker compose -f " + shq(req.ConfigFile) + " " + tail + " 2>&1"
+	out, err := h.dockerRunAsset(c, dockerHead+cmd)
+	if err != nil {
+		return fail(c, err)
+	}
+	return web.OK(c, map[string]any{"ok": true, "output": stripNoise(out)})
+}
+
+// dockerComposeFile 读取 compose 文件内容（SSH 用户本就有 shell 权限，shq 防注入即可）。
+func (h *Handler) dockerComposeFile(c echo.Context) error {
+	path := c.QueryParam("path")
+	if strings.TrimSpace(path) == "" {
+		return web.Fail(c, 200, 400, "缺少路径")
+	}
+	out, err := h.dockerRunAsset(c, "cat "+shq(path)+" 2>&1")
+	if err != nil {
+		return fail(c, err)
+	}
+	return web.OK(c, map[string]any{"content": stripNoise(out)})
+}
+
+// ---- 容器内文件（docker exec 浏览 / 查看 / 下载）----
+
+// dockerFileLs 列容器内某目录（ls -lA 解析）。
+func (h *Handler) dockerFileLs(c echo.Context) error {
+	id := c.QueryParam("id")
+	if !isSafeToken(id) {
+		return web.Fail(c, 200, 400, "容器 ID 非法")
+	}
+	path := c.QueryParam("path")
+	if strings.TrimSpace(path) == "" {
+		path = "/"
+	}
+	out, err := h.dockerRunAsset(c, dockerHead+"docker exec "+id+" ls -lA "+shq(path)+" 2>&1")
+	if err != nil {
+		return fail(c, err)
+	}
+	if strings.Contains(out, "no_docker") {
+		return web.OK(c, map[string]any{"available": false})
+	}
+	type entry struct {
+		Name   string `json:"name"`
+		IsDir  bool   `json:"isDir"`
+		IsLink bool   `json:"isLink"`
+		Size   string `json:"size"`
+		Mode   string `json:"mode"`
+	}
+	list := []entry{}
+	for _, ln := range strings.Split(out, "\n") {
+		ln = strings.TrimRight(ln, "\r")
+		if ln == "" || strings.HasPrefix(ln, "total ") || strings.Contains(ln, "Emulate Docker CLI") {
+			continue
+		}
+		f := strings.Fields(ln)
+		if len(f) < 9 || len(f[0]) < 1 {
+			continue
+		}
+		name := strings.Join(f[8:], " ")
+		isLink := f[0][0] == 'l'
+		if isLink {
+			if i := strings.Index(name, " -> "); i >= 0 {
+				name = name[:i]
+			}
+		}
+		if name == "." || name == ".." {
+			continue
+		}
+		list = append(list, entry{Name: name, IsDir: f[0][0] == 'd', IsLink: isLink, Size: at(f, 4), Mode: f[0]})
+	}
+	return web.OK(c, map[string]any{"available": true, "path": path, "entries": list})
+}
+
+// dockerFileRead 读容器内文本文件（截断到 512KB）。
+func (h *Handler) dockerFileRead(c echo.Context) error {
+	id := c.QueryParam("id")
+	if !isSafeToken(id) {
+		return web.Fail(c, 200, 400, "容器 ID 非法")
+	}
+	path := c.QueryParam("path")
+	if strings.TrimSpace(path) == "" {
+		return web.Fail(c, 200, 400, "缺少路径")
+	}
+	out, err := h.dockerRunAsset(c, dockerHead+"docker exec "+id+" cat "+shq(path)+" 2>&1")
+	if err != nil {
+		return fail(c, err)
+	}
+	out = stripNoise(out)
+	const maxRead = 512 * 1024
+	if len(out) > maxRead {
+		out = out[:maxRead] + "\n…(已截断)"
+	}
+	return web.OK(c, map[string]any{"content": out})
+}
+
+// dockerFileDownload 流式下载容器内文件（docker exec cat → HTTP attachment）。token 走 query。
+func (h *Handler) dockerFileDownload(c echo.Context) error {
+	id := c.QueryParam("id")
+	path := c.QueryParam("path")
+	if !isSafeToken(id) || strings.TrimSpace(path) == "" {
+		return web.Fail(c, 200, 400, "参数非法")
+	}
+	u := web.CurrentUser(c)
+	target, _, err := h.resolveTargetByAsset(u, c.Param("assetId"))
+	if err != nil {
+		return fail(c, err)
+	}
+	client, derr := gateway.DialSSH(*target, h.sshOptionsForUser(u.ID))
+	if derr != nil {
+		return web.Fail(c, 200, 500, "SSH 连接失败: "+derr.Error())
+	}
+	defer client.Close()
+	sess, serr := client.NewSession()
+	if serr != nil {
+		return web.Fail(c, 200, 500, serr.Error())
+	}
+	defer sess.Close()
+	stdout, _ := sess.StdoutPipe()
+	base := path[strings.LastIndex(path, "/")+1:]
+	if base == "" {
+		base = "download"
+	}
+	c.Response().Header().Set("Content-Disposition", "attachment; filename=\""+base+"\"")
+	c.Response().Header().Set("Content-Type", "application/octet-stream")
+	if e := sess.Start("docker exec " + id + " cat " + shq(path)); e != nil {
+		return web.Fail(c, 200, 500, e.Error())
+	}
+	_, _ = io.Copy(c.Response(), stdout)
+	_ = sess.Wait()
+	return nil
 }

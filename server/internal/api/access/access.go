@@ -107,6 +107,14 @@ func (h *Handler) RegisterAccess(g *echo.Group) {
 	g.GET("/docker/:assetId/logs", h.dockerLogs)   // WS：跟随日志
 	g.GET("/docker/:assetId/exec", h.dockerExec)   // WS：进入容器终端
 	g.GET("/docker/:assetId/pull", h.dockerPull)   // WS：镜像 pull 进度
+	g.GET("/docker/:assetId/df", h.dockerDiskUsage)
+	g.POST("/docker/:assetId/run", h.dockerRunCreate)
+	g.GET("/docker/:assetId/compose", h.dockerComposeList)
+	g.POST("/docker/:assetId/compose/action", h.dockerComposeAction)
+	g.GET("/docker/:assetId/compose/file", h.dockerComposeFile)
+	g.GET("/docker/:assetId/fs/ls", h.dockerFileLs)
+	g.GET("/docker/:assetId/fs/read", h.dockerFileRead)
+	g.GET("/docker/:assetId/fs/download", h.dockerFileDownload)
 	g.GET("/gpu", h.gpu)
 	g.GET("/forwards", h.forwardList)
 	g.POST("/forwards", h.forwardCreate)

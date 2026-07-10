@@ -1,20 +1,22 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { dockerApi, dockerWsUrl, type DockerAction, type DockerObjType } from '../../api/docker'
+import { dockerApi, dockerWsUrl, type DockerAction, type DockerObjType, type RunReq } from '../../api/docker'
 import { confirm, toast } from '../../ui'
 import DockerStream from './DockerStream'
+import ContainerFiles from './ContainerFiles'
 
 // 资产级 Docker 管理器：侧面板(panel) 与整页(page) 共用同一组件。
 // 分区:概览 / 容器 / 镜像 / 网络 / 卷。数据经资产级 REST 拉取,操作走 action 白名单。
 
 const C = { bg: '#1E1F22', card: '#26282B', border: '#34363a', text: '#e5e7eb', muted: '#9ca3af', dim: '#6b7280', accent: '#845adf' }
-type Section = 'overview' | 'containers' | 'images' | 'networks' | 'volumes'
+type Section = 'overview' | 'containers' | 'images' | 'networks' | 'volumes' | 'compose'
 const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: 'overview', label: '概览', icon: 'bx-bar-chart-alt-2' },
   { id: 'containers', label: '容器', icon: 'bx-box' },
   { id: 'images', label: '镜像', icon: 'bx-layer' },
   { id: 'networks', label: '网络', icon: 'bx-network-chart' },
   { id: 'volumes', label: '卷', icon: 'bx-hdd' },
+  { id: 'compose', label: '编排', icon: 'bx-collection' },
 ]
 
 const fmtKB = (kb: number) => {
@@ -155,6 +157,9 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
   const [inspect, setInspect] = useState<{ id: string; title: string } | null>(null)
   const [prompt, setPrompt] = useState<null | { title: string; label: string; initial?: string; run: (v: string) => void }>(null)
   const [stream, setStream] = useState<null | { url: string; interactive: boolean; title: string; icon: string }>(null)
+  const [files, setFiles] = useState<null | { id: string; name: string }>(null)
+  const [runOpen, setRunOpen] = useState<null | { image: string }>(null)
+  const [viewCompose, setViewCompose] = useState<null | { path: string; name: string }>(null)
 
   const openLogs = (id: string, name: string) => setStream({ url: dockerWsUrl(assetId, 'logs', { id, tail: '300' }), interactive: false, title: `日志 · ${name}`, icon: 'bx-file' })
   const openExec = (id: string, name: string) => setStream({ url: dockerWsUrl(assetId, 'exec', { id }), interactive: true, title: `终端 · ${name}`, icon: 'bx-terminal' })
@@ -168,10 +173,33 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
         : section === 'images' ? dockerApi.images(assetId)
           : section === 'networks' ? dockerApi.networks(assetId)
             : section === 'volumes' ? dockerApi.volumes(assetId)
-              : Promise.resolve({ available: true } as any),
+              : section === 'compose' ? dockerApi.compose(assetId)
+                : Promise.resolve({ available: true } as any),
     enabled: section !== 'overview',
     refetchInterval: section === 'containers' ? 3000 : 8000,
   })
+
+  const doRun = async (body: RunReq) => {
+    try {
+      const r = await dockerApi.run(assetId, body)
+      toast.success('已创建容器' + (r.output ? '：' + r.output.slice(0, 12) : ''))
+      setRunOpen(null)
+      setSection('containers')
+      refresh()
+    } catch (e: any) {
+      toast.error('创建失败：' + (e?.message || ''))
+    }
+  }
+  const doCompose = async (configFile: string, action: 'up' | 'down' | 'restart') => {
+    if (action === 'down' && !(await confirm('确定要 down 该项目（停止并移除容器）？', { danger: true, okText: 'down' }))) return
+    try {
+      await dockerApi.composeAction(assetId, { configFile, action })
+      toast.success('操作成功')
+      qc.invalidateQueries({ queryKey: ['docker-list', assetId] })
+    } catch (e: any) {
+      toast.error('操作失败：' + (e?.message || ''))
+    }
+  }
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['docker-list', assetId] }); qc.invalidateQueries({ queryKey: ['docker-ov', assetId] }) }
 
@@ -228,12 +256,15 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
         {notAvail ? (
           <Hint danger>未获取到 Docker（该主机未安装或无权限）</Hint>
         ) : section === 'overview' ? (
-          <OverviewSection info={info} daemonOk={ov.data?.daemonOk} />
+          <OverviewSection assetId={assetId} info={info} daemonOk={ov.data?.daemonOk} onPrune={(t) => run(t, 'prune', undefined, undefined, true)} />
+        ) : section === 'compose' ? (
+          <ComposeSection data={list.data as any} error={list.isError ? (list.error as any) : null} onAction={doCompose}
+            onViewFile={(path, name) => setViewCompose({ path, name })} />
         ) : (
           <>
             {section === 'volumes' && <div className="mb-2 d-flex justify-content-end"><button className="btn btn-sm btn-outline-secondary" onClick={() => askName('新建数据卷', '卷名称', '', (v) => run('volume', 'create', undefined, v))}><i className="bx bx-plus" /> 新建卷</button></div>}
             {section === 'networks' && <div className="mb-2 d-flex justify-content-end"><button className="btn btn-sm btn-outline-secondary" onClick={() => askName('新建网络', '网络名称', '', (v) => run('network', 'create', undefined, v))}><i className="bx bx-plus" /> 新建网络</button></div>}
-            {section === 'images' && <div className="mb-2 d-flex justify-content-end"><button className="btn btn-sm btn-outline-secondary" onClick={() => askName('拉取镜像', '镜像引用（如 nginx:latest）', '', (v) => openPull(v))}><i className="bx bx-download" /> 拉取镜像</button></div>}
+            {section === 'images' && <div className="mb-2 d-flex justify-content-end gap-2"><button className="btn btn-sm btn-outline-secondary" onClick={() => setRunOpen({ image: '' })}><i className="bx bx-play-circle" /> 运行容器</button><button className="btn btn-sm btn-outline-secondary" onClick={() => askName('拉取镜像', '镜像引用（如 nginx:latest）', '', (v) => openPull(v))}><i className="bx bx-download" /> 拉取镜像</button></div>}
             <SearchInput value={q} onChange={setQ} placeholder="搜索…" />
             {list.isError ? <Hint danger>采集失败：{(list.error as any)?.message}</Hint>
               : !list.data ? <Hint>采集中…</Hint>
@@ -241,11 +272,11 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
                   : section === 'containers' ? (
                     <ContainerList data={(list.data as any).containers || []} ql={ql} mode={mode} busy={busy}
                       onAction={run} onInspect={(id, name) => setInspect({ id, title: name })}
-                      onLogs={openLogs} onExec={openExec}
+                      onLogs={openLogs} onExec={openExec} onFiles={(id, name) => setFiles({ id, name })}
                       onRename={(id, cur) => askName('重命名容器', '新名称', cur, (v) => run('container', 'rename', id, v))} />
                   ) : section === 'images' ? (
                     <ImageList data={(list.data as any).images || []} ql={ql} mode={mode} busy={busy}
-                      onAction={run} onInspect={(id, name) => setInspect({ id, title: name })} />
+                      onAction={run} onInspect={(id, name) => setInspect({ id, title: name })} onRun={(ref) => setRunOpen({ image: ref })} />
                   ) : section === 'networks' ? (
                     <NetworkList data={(list.data as any).networks || []} ql={ql} busy={busy}
                       onAction={run} onInspect={(id, name) => setInspect({ id, title: name })} />
@@ -258,13 +289,26 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
       </div>
 
       {stream && <DockerStream url={stream.url} interactive={stream.interactive} title={stream.title} icon={stream.icon} onClose={() => setStream(null)} />}
+      {files && <ContainerFiles assetId={assetId} id={files.id} name={files.name} onClose={() => setFiles(null)} />}
+      {runOpen && <RunModal initialImage={runOpen.image} onRun={doRun} onClose={() => setRunOpen(null)} />}
+      {viewCompose && <ComposeFileModal assetId={assetId} path={viewCompose.path} name={viewCompose.name} onClose={() => setViewCompose(null)} />}
       {inspect && <InspectModal assetId={assetId} id={inspect.id} title={inspect.title} onClose={() => setInspect(null)} />}
       {prompt && <PromptModal title={prompt.title} label={prompt.label} initial={prompt.initial} onOk={prompt.run} onClose={() => setPrompt(null)} />}
     </div>
   )
 }
 
-function OverviewSection({ info, daemonOk }: { info?: any; daemonOk?: boolean }) {
+const PRUNE_TARGETS: { type: DockerObjType; label: string }[] = [
+  { type: 'system', label: '系统(全部未用)' },
+  { type: 'image', label: '镜像' },
+  { type: 'container', label: '容器' },
+  { type: 'volume', label: '卷' },
+  { type: 'network', label: '网络' },
+  { type: 'builder', label: '构建缓存' },
+]
+
+function OverviewSection({ assetId, info, daemonOk, onPrune }: { assetId: string; info?: any; daemonOk?: boolean; onPrune: (t: DockerObjType) => void }) {
+  const df = useQuery({ queryKey: ['docker-df', assetId], queryFn: () => dockerApi.df(assetId), enabled: !!daemonOk })
   if (!info) return <Hint>采集中…</Hint>
   if (!daemonOk) return <Hint danger>Docker 守护进程未运行或无权限</Hint>
   const cells: [string, React.ReactNode][] = [
@@ -277,8 +321,10 @@ function OverviewSection({ info, daemonOk }: { info?: any; daemonOk?: boolean })
     ['CPU', info.ncpu ? info.ncpu + ' 核' : '—'],
     ['内存', info.memTotalKB > 0 ? fmtKB(info.memTotalKB) : '—'],
   ]
+  const usage = df.data?.usage || []
   return (
-    <div className="d-grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+    <>
+    <div className="d-grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
       {cells.map(([k, v]) => (
         <div key={k} className="rounded p-2" style={{ background: C.card, border: `1px solid ${C.border}` }}>
           <div style={{ color: C.dim, fontSize: 11 }}>{k}</div>
@@ -286,12 +332,44 @@ function OverviewSection({ info, daemonOk }: { info?: any; daemonOk?: boolean })
         </div>
       ))}
     </div>
+
+    {/* 磁盘占用 */}
+    <div className="rounded mb-3" style={{ background: C.card, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+      <div className="px-2 py-1 d-flex align-items-center" style={{ fontSize: 12, color: C.muted, borderBottom: `1px solid ${C.border}` }}>
+        <i className="bx bx-hdd me-1" />磁盘占用{df.isFetching && <i className="bx bx-loader-alt bx-spin ms-2" />}
+      </div>
+      {usage.length === 0 ? (
+        <div style={{ color: C.dim, fontSize: 12, padding: 8, textAlign: 'center' }}>{df.data ? '无数据' : '加载中…'}</div>
+      ) : (
+        <>
+          <div className="d-flex px-2 py-1" style={{ fontSize: 11, color: C.dim }}>
+            <span style={{ flex: 1 }}>类型</span><span style={{ width: 44, textAlign: 'right' }}>总数</span><span style={{ width: 60, textAlign: 'right' }}>大小</span><span style={{ width: 72, textAlign: 'right' }}>可回收</span>
+          </div>
+          {usage.map((u) => (
+            <div key={u.type} className="d-flex px-2 py-1" style={{ fontSize: 12, color: C.text, borderTop: `1px solid ${C.border}` }}>
+              <span style={{ flex: 1 }}>{u.type}</span><span style={{ width: 44, textAlign: 'right' }}>{u.total}</span><span style={{ width: 60, textAlign: 'right' }}>{u.size}</span><span style={{ width: 72, textAlign: 'right', color: '#f59e0b' }}>{u.reclaimable}</span>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+
+    {/* 一键清理 */}
+    <div className="rounded p-2" style={{ background: C.card, border: `1px solid ${C.border}` }}>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}><i className="bx bx-trash me-1" />清理未使用资源（prune）</div>
+      <div className="d-flex flex-wrap gap-2">
+        {PRUNE_TARGETS.map((p) => (
+          <button key={p.type} className="btn btn-sm btn-outline-secondary" onClick={() => onPrune(p.type)}>{p.label}</button>
+        ))}
+      </div>
+    </div>
+    </>
   )
 }
 
 type ActFn = (type: DockerObjType, action: DockerAction, id?: string, name?: string, danger?: boolean) => void
 
-function ContainerList({ data, ql, mode, busy, onAction, onInspect, onLogs, onExec, onRename }: { data: any[]; ql: string; mode: 'panel' | 'page'; busy: string; onAction: ActFn; onInspect: (id: string, name: string) => void; onLogs: (id: string, name: string) => void; onExec: (id: string, name: string) => void; onRename: (id: string, cur: string) => void }) {
+function ContainerList({ data, ql, mode, busy, onAction, onInspect, onLogs, onExec, onFiles, onRename }: { data: any[]; ql: string; mode: 'panel' | 'page'; busy: string; onAction: ActFn; onInspect: (id: string, name: string) => void; onLogs: (id: string, name: string) => void; onExec: (id: string, name: string) => void; onFiles: (id: string, name: string) => void; onRename: (id: string, cur: string) => void }) {
   const shown = data.filter((c) => !ql || c.name.toLowerCase().includes(ql) || (c.image || '').toLowerCase().includes(ql))
   if (shown.length === 0) return <Hint>{data.length ? '无匹配容器' : '暂无容器'}</Hint>
   return (
@@ -333,6 +411,7 @@ function ContainerList({ data, ql, mode, busy, onAction, onInspect, onLogs, onEx
                 )}
                 <IBtn icon="bx-file" title="日志" onClick={() => onLogs(ct.id, ct.name)} />
                 {running && <IBtn icon="bx-terminal" title="进入终端" onClick={() => onExec(ct.id, ct.name)} />}
+                {running && <IBtn icon="bx-folder" title="文件" onClick={() => onFiles(ct.id, ct.name)} />}
                 <IBtn icon="bx-rename" title="重命名" onClick={() => onRename(ct.id, ct.name)} />
                 <IBtn icon="bx-info-circle" title="详情" onClick={() => onInspect(ct.id, ct.name)} />
                 <IBtn icon="bx-trash" title="删除(强制)" danger spin={bz('rm')} onClick={() => onAction('container', 'rm', ct.id, ct.name, true)} />
@@ -345,22 +424,26 @@ function ContainerList({ data, ql, mode, busy, onAction, onInspect, onLogs, onEx
   )
 }
 
-function ImageList({ data, ql, mode, busy, onAction, onInspect }: { data: any[]; ql: string; mode: 'panel' | 'page'; busy: string; onAction: ActFn; onInspect: (id: string, name: string) => void }) {
+function ImageList({ data, ql, mode, busy, onAction, onInspect, onRun }: { data: any[]; ql: string; mode: 'panel' | 'page'; busy: string; onAction: ActFn; onInspect: (id: string, name: string) => void; onRun: (ref: string) => void }) {
   const shown = data.filter((i) => !ql || `${i.repo}:${i.tag}`.toLowerCase().includes(ql))
   if (shown.length === 0) return <Hint>{data.length ? '无匹配镜像' : '暂无镜像'}</Hint>
   return (
     <div className="d-grid gap-2" style={{ gridTemplateColumns: mode === 'page' ? 'repeat(auto-fill, minmax(320px, 1fr))' : '1fr' }}>
-      {shown.map((im, i) => (
+      {shown.map((im, i) => {
+        const ref = im.tag && im.tag !== '<none>' ? `${im.repo}:${im.tag}` : im.id
+        return (
         <div key={im.id + i} className="rounded p-2 d-flex align-items-center gap-2" style={{ background: C.card, border: `1px solid ${C.border}` }}>
           <i className="bx bx-layer" style={{ color: '#6ea8fe' }} />
           <div className="flex-grow-1" style={{ minWidth: 0 }}>
             <div className="text-truncate" style={{ color: C.text, fontSize: 12 }} title={`${im.repo}:${im.tag}`}>{im.repo}<span style={{ color: C.dim }}>:{im.tag}</span></div>
             <div style={{ color: '#5b5f66', fontSize: 10 }}>{im.id} · {im.size}{im.created ? ' · ' + im.created : ''}</div>
           </div>
+          <IBtn icon="bx-play-circle" title="运行为容器" onClick={() => onRun(ref)} />
           <IBtn icon="bx-info-circle" title="详情" onClick={() => onInspect(im.id, `${im.repo}:${im.tag}`)} />
           <IBtn icon="bx-trash" title="删除镜像" danger spin={busy === im.id + 'rm'} onClick={() => onAction('image', 'rm', im.id, `${im.repo}:${im.tag}`, true)} />
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -401,5 +484,103 @@ function VolumeList({ data, ql, busy, onAction, onInspect }: { data: any[]; ql: 
         </div>
       ))}
     </div>
+  )
+}
+
+function ComposeSection({ data, error, onAction, onViewFile }: { data?: { available: boolean; projects?: any[] }; error: any; onAction: (configFile: string, action: 'up' | 'down' | 'restart') => void; onViewFile: (path: string, name: string) => void }) {
+  if (error) return <Hint danger>采集失败：{error?.message}</Hint>
+  if (!data) return <Hint>采集中…</Hint>
+  if (!data.available) return <Hint>未检测到 docker compose（该主机未安装 compose 插件）</Hint>
+  const projects = data.projects || []
+  if (projects.length === 0) return <Hint>暂无 compose 项目</Hint>
+  const firstPath = (p: string) => (p || '').split(',')[0]
+  return (
+    <div className="d-flex flex-column gap-2">
+      {projects.map((p) => (
+        <div key={p.name + p.configFiles} className="rounded p-2" style={{ background: C.card, border: `1px solid ${C.border}` }}>
+          <div className="d-flex align-items-center gap-2 mb-1">
+            <i className="bx bx-collection" style={{ color: '#6ea8fe' }} />
+            <span className="text-truncate fw-medium" style={{ color: C.text, fontSize: 13, flex: 1 }} title={p.name}>{p.name}</span>
+            <span style={{ fontSize: 10, color: C.muted }}>{p.status}</span>
+          </div>
+          <div className="text-truncate" style={{ color: '#5b5f66', fontSize: 10 }} title={p.configFiles}>{p.configFiles}</div>
+          <div className="d-flex gap-1 justify-content-end mt-1">
+            <IBtn icon="bx-play" title="up -d" onClick={() => onAction(firstPath(p.configFiles), 'up')} />
+            <IBtn icon="bx-refresh" title="restart" onClick={() => onAction(firstPath(p.configFiles), 'restart')} />
+            <IBtn icon="bx-stop" title="down" danger onClick={() => onAction(firstPath(p.configFiles), 'down')} />
+            <IBtn icon="bx-file" title="查看 compose 文件" onClick={() => onViewFile(firstPath(p.configFiles), p.name)} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ComposeFileModal({ assetId, path, name, onClose }: { assetId: string; path: string; name: string; onClose: () => void }) {
+  const { data, isError, error } = useQuery({ queryKey: ['compose-file', assetId, path], queryFn: () => dockerApi.composeFile(assetId, path) })
+  return (
+    <>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
+      <div className="rounded shadow d-flex flex-column" style={{ position: 'absolute', inset: '6% 6%', zIndex: 31, background: C.bg, border: `1px solid ${C.border}` }}>
+        <div className="d-flex align-items-center px-3" style={{ height: 40, borderBottom: `1px solid ${C.border}` }}>
+          <i className="bx bx-collection me-2" style={{ color: '#6ea8fe' }} />
+          <span className="text-truncate" style={{ color: C.text, fontSize: 13 }}>{name} · {path}</span>
+          <button className="term-tool ms-auto" title="关闭" onClick={onClose}><i className="bx bx-x" /></button>
+        </div>
+        {isError ? <Hint danger>读取失败：{(error as any)?.message}</Hint>
+          : <pre style={{ flex: 1, minHeight: 0, overflow: 'auto', margin: 0, padding: 12, background: '#111316', color: '#d4d4d4', fontSize: 12 }}>{data?.content ?? '加载中…'}</pre>}
+      </div>
+    </>
+  )
+}
+
+function RunModal({ initialImage, onRun, onClose }: { initialImage: string; onRun: (body: RunReq) => Promise<void> | void; onClose: () => void }) {
+  const [image, setImage] = useState(initialImage || '')
+  const [name, setName] = useState('')
+  const [ports, setPorts] = useState('')
+  const [envs, setEnvs] = useState('')
+  const [vols, setVols] = useState('')
+  const [restart, setRestart] = useState('')
+  const [command, setCommand] = useState('')
+  const [busy, setBusy] = useState(false)
+  const lines = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean)
+  const submit = async () => {
+    if (!image.trim()) return
+    setBusy(true)
+    await onRun({ image: image.trim(), name: name.trim() || undefined, ports: lines(ports), envs: lines(envs), volumes: lines(vols), restart: restart || undefined, command: command.trim() || undefined })
+    setBusy(false)
+  }
+  const ta = { className: 'form-control form-control-sm bg-dark text-light border-secondary', style: { fontSize: 12 } }
+  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="mb-2"><div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>{label}</div>{children}</div>
+  )
+  return (
+    <>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
+      <div className="rounded shadow d-flex flex-column" style={{ position: 'absolute', inset: '4% 8%', zIndex: 31, background: C.bg, border: `1px solid ${C.border}` }}>
+        <div className="d-flex align-items-center px-3" style={{ height: 44, borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <i className="bx bx-play-circle me-2" style={{ color: '#22c55e' }} />
+          <span style={{ color: C.text, fontSize: 14 }}>运行容器</span>
+          <button className="term-tool ms-auto" title="关闭" onClick={onClose}><i className="bx bx-x" /></button>
+        </div>
+        <div className="p-3" style={{ overflow: 'auto', minHeight: 0 }}>
+          <Row label="镜像 *"><input {...ta} value={image} onChange={(e) => setImage(e.target.value)} placeholder="nginx:latest" /></Row>
+          <Row label="容器名称"><input {...ta} value={name} onChange={(e) => setName(e.target.value)} placeholder="可选" /></Row>
+          <Row label="端口映射（每行一个，如 8080:80）"><textarea {...ta} rows={2} value={ports} onChange={(e) => setPorts(e.target.value)} /></Row>
+          <Row label="环境变量（每行一个，KEY=VALUE）"><textarea {...ta} rows={2} value={envs} onChange={(e) => setEnvs(e.target.value)} /></Row>
+          <Row label="挂载（每行一个，/host:/container）"><textarea {...ta} rows={2} value={vols} onChange={(e) => setVols(e.target.value)} /></Row>
+          <Row label="重启策略">
+            <select {...ta} value={restart} onChange={(e) => setRestart(e.target.value)}>
+              <option value="">默认(no)</option><option value="always">always</option><option value="unless-stopped">unless-stopped</option><option value="on-failure">on-failure</option>
+            </select>
+          </Row>
+          <Row label="启动命令（可选，覆盖镜像 CMD）"><input {...ta} value={command} onChange={(e) => setCommand(e.target.value)} placeholder="如 sleep 3600" /></Row>
+        </div>
+        <div className="d-flex justify-content-end gap-2 px-3 pb-3" style={{ flexShrink: 0 }}>
+          <button className="btn btn-sm btn-secondary" onClick={onClose}>取消</button>
+          <button className="btn btn-sm btn-primary" disabled={!image.trim() || busy} onClick={submit}><i className={`bx ${busy ? 'bx-loader-alt bx-spin' : 'bx-play'}`} /> 运行</button>
+        </div>
+      </div>
+    </>
   )
 }
