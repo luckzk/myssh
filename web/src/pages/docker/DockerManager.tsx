@@ -149,7 +149,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-export default function DockerManager({ assetId, assetName, mode, active = true }: { assetId: string; assetName?: string; mode: 'panel' | 'page'; active?: boolean }) {
+export default function DockerManager({ assetId, assetName, mode, active = true, onExpand }: { assetId: string; assetName?: string; mode: 'panel' | 'page'; active?: boolean; onExpand?: () => void }) {
   const qc = useQueryClient()
   const [section, setSection] = useState<Section>('containers')
   const [q, setQ] = useState('')
@@ -249,7 +249,8 @@ export default function DockerManager({ assetId, assetName, mode, active = true 
             <span><i className="bx bx-layer me-1" />{info.images}</span>
           </span>
         )}
-        <button className="term-tool" title="刷新" onClick={refresh} style={{ marginLeft: info ? 8 : 'auto' }}><i className="bx bx-refresh" /></button>
+        {onExpand && <button className="term-tool" title="扩大为标签页" onClick={onExpand} style={{ marginLeft: info ? 8 : 'auto' }}><i className="bx bx-expand-alt" /></button>}
+        <button className="term-tool" title="刷新" onClick={refresh} style={{ marginLeft: onExpand || info ? 0 : 'auto' }}><i className="bx bx-refresh" /></button>
       </div>
 
       {/* 分区标签 */}

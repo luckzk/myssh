@@ -37,6 +37,7 @@ interface Group {
 
 const SS_KEY = 'nt-workspace-tabs'
 const NEW_TERM_EVENT = 'nt-open-terminal-at'
+const OPEN_DOCKER_EVENT = 'nt-open-docker'
 const BROADCAST_EVENT = 'nt-terminal-broadcast'
 const PROTO_ICON: Record<string, string> = { ssh: 'bx-terminal', rdp: 'bx-windows', vnc: 'bx-desktop', telnet: 'bx-chip' }
 // 每种布局的 [列数, 行数]；格数 = 列×行。
@@ -189,8 +190,8 @@ export default function AccessWorkspace() {
     })
   }
   const openAsset = (a: Asset) => addTerm({ id: uid(), assetId: a.id, name: a.name, protocol: a.protocol, logo: a.logo, os: a.os })
-  // 打开一个 Docker 管理标签（与终端标签同级，protocol=docker）
-  const openDockerTab = (a: Asset) => addTerm({ id: uid(), assetId: a.id, name: `${a.name} · Docker`, protocol: 'docker', logo: a.logo, os: a.os })
+  // 打开一个 Docker 管理标签（与终端标签同级，protocol=docker）；供侧边栏「扩大为标签」调用
+  const openDockerTab = (assetId: string, name: string) => addTerm({ id: uid(), assetId, name: `${name} · Docker`, protocol: 'docker' })
 
   // 资产页「连接」跨窗口请求：在已打开的工作台里新建一个工作组，不重载、不断开已有终端。
   const openInNewGroup = (t: Term) => {
@@ -217,8 +218,16 @@ export default function AccessWorkspace() {
       const d = (e as CustomEvent<{ assetId: string; name: string; cwd: string }>).detail
       if (d?.assetId) addTerm({ id: uid(), assetId: d.assetId, name: d.name, protocol: 'ssh', initCwd: d.cwd })
     }
+    const onOpenDocker = (e: Event) => {
+      const d = (e as CustomEvent<{ assetId: string; name: string }>).detail
+      if (d?.assetId) openDockerTab(d.assetId, d.name)
+    }
     window.addEventListener(NEW_TERM_EVENT, onNewTerm)
-    return () => window.removeEventListener(NEW_TERM_EVENT, onNewTerm)
+    window.addEventListener(OPEN_DOCKER_EVENT, onOpenDocker)
+    return () => {
+      window.removeEventListener(NEW_TERM_EVENT, onNewTerm)
+      window.removeEventListener(OPEN_DOCKER_EVENT, onOpenDocker)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGroupId])
 
@@ -313,7 +322,7 @@ export default function AccessWorkspace() {
 
   return (
     <div className="d-flex" style={{ height: '100vh', background: '#1E1F22' }}>
-      <AssetTree currentAssetId={activeAssetId} onOpen={openAsset} onOpenDocker={openDockerTab} />
+      <AssetTree currentAssetId={activeAssetId} onOpen={openAsset} />
 
       <div className="d-flex flex-column flex-grow-1" style={{ minWidth: 0 }}>
         {/* 工作组 tab 条 + 布局/广播（右） */}

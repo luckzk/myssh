@@ -7,6 +7,7 @@ import AssetIcon from '../../components/AssetIcon'
 // 协议 → 图标 + 徽章色（对齐 demo：SSH 绿 / RDP 紫 / VNC 黄 / Telnet 蓝）
 const PROTO: Record<string, { icon: string; color: string }> = {
   ssh: { icon: 'bx-terminal', color: 'success' },
+  docker: { icon: 'bxl-docker', color: 'primary' },
   rdp: { icon: 'bx-windows', color: 'primary' },
   vnc: { icon: 'bx-desktop', color: 'warning' },
   telnet: { icon: 'bx-chip', color: 'info' },
@@ -21,11 +22,10 @@ function defaultOpen(a: Asset) {
 interface Props {
   currentAssetId?: string
   onOpen?: (asset: Asset) => void // 工作台内：开内部 tab；缺省回退新标签
-  onOpenDocker?: (asset: Asset) => void // 打开该 ssh 资产的 Docker 管理标签
 }
 
 // 左侧资源树（暗色，对齐 demo）：搜索 + 按分组展示资产 + 协议徽章，点击连接。
-export default function AssetTree({ currentAssetId, onOpen, onOpenDocker }: Props) {
+export default function AssetTree({ currentAssetId, onOpen }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [kw, setKw] = useState('')
@@ -67,14 +67,6 @@ export default function AssetTree({ currentAssetId, onOpen, onOpenDocker }: Prop
       >
         <AssetIcon asset={a} size={16} color="#9ca3af" />
         <span className="flex-grow-1 text-truncate" style={{ fontSize: 13 }}>{a.name}</span>
-        {a.protocol === 'ssh' && onOpenDocker && (
-          <i
-            className="bx bxl-docker at-docker"
-            title="打开 Docker 管理"
-            style={{ fontSize: 15, color: '#2496ed', cursor: 'pointer' }}
-            onClick={(e) => { e.stopPropagation(); onOpenDocker(a) }}
-          />
-        )}
         <span className={`badge bg-${p.color}-transparent text-${p.color}`} style={{ fontSize: 9 }}>{a.protocol.toUpperCase()}</span>
       </div>
     )

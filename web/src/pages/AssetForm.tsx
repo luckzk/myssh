@@ -4,8 +4,8 @@ import { assetApi, credentialApi, type Asset } from '../api/resource'
 import { Modal, Field, TextInput, Password, Textarea, Select, Switch, toast } from '../ui'
 import AssetIcon from '../components/AssetIcon'
 
-const PROTOCOLS = ['ssh', 'rdp', 'vnc', 'telnet', 'serial', 'local']
-const DEFAULT_PORT: Record<string, number> = { ssh: 22, rdp: 3389, vnc: 5900, telnet: 23, serial: 9600, local: 0 }
+const PROTOCOLS = ['ssh', 'docker', 'rdp', 'vnc', 'telnet', 'serial', 'local']
+const DEFAULT_PORT: Record<string, number> = { ssh: 22, docker: 22, rdp: 3389, vnc: 5900, telnet: 23, serial: 9600, local: 0 }
 
 // 验证方式（对齐 conn_ssh 参考的分段）。值即存入 accountType。
 const AUTH_METHODS = [
@@ -70,7 +70,9 @@ export default function AssetForm({ open, editing, groupOptions, jumpGroups, onC
   const isTelnet = v.protocol === 'telnet'
   const isSerial = v.protocol === 'serial'
   const isLocal = v.protocol === 'local'
-  const tabs = isSsh ? TABS_SSH : TABS_OTHER
+  const isDocker = v.protocol === 'docker'
+  const sshLike = isSsh || isDocker // docker 经 SSH 管理，复用 SSH 连接/凭证/跳板机表单
+  const tabs = sshLike ? TABS_SSH : TABS_OTHER
   const auth = v.accountType ?? 'password'
 
   const buildPayload = () => {
@@ -188,7 +190,7 @@ export default function AssetForm({ open, editing, groupOptions, jumpGroups, onC
                 </div>
               </Field>
 
-              {isSsh && (
+              {sshLike && (
                 <div className="col-12">
                   <label className="form-label">验证方式 <span className="text-danger">*</span></label>
                   <div className="btn-group d-flex flex-wrap" role="group">
@@ -205,7 +207,7 @@ export default function AssetForm({ open, editing, groupOptions, jumpGroups, onC
                 </Field>
               ) : (
                 <>
-                  <Field col="col-md-6" label="登录用户" required={isSsh}>
+                  <Field col="col-md-6" label="登录用户" required={sshLike}>
                     <TextInput placeholder="root" value={v.username ?? ''} onChange={(e) => set('username', e.target.value)} />
                   </Field>
                   {auth === 'private-key' ? (

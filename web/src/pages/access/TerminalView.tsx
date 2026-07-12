@@ -403,7 +403,8 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
 
       {dockerOpen && !viewer && (
         <div style={{ width: 360, flexShrink: 0, height: '100%' }}>
-          <DockerManager assetId={assetId} assetName={name} mode="panel" />
+          <DockerManager assetId={assetId} assetName={name} mode="panel"
+            onExpand={() => { window.dispatchEvent(new CustomEvent('nt-open-docker', { detail: { assetId, name } })); setDockerOpen(false) }} />
         </div>
       )}
 

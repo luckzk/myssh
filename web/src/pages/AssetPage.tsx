@@ -149,15 +149,6 @@ export default function AssetPage() {
           >
             <i className="bx bx-link-external" /> 连接
           </button>
-          {rec.protocol === 'ssh' && (
-            <button
-              className="btn btn-sm btn-light"
-              title="Docker 管理"
-              onClick={() => window.open(`/docker/${rec.id}?name=${encodeURIComponent(rec.name)}`, `nt-docker-${rec.id}`)}
-            >
-              <i className="bx bxl-docker" /> Docker
-            </button>
-          )}
           {isAdmin && (
             <>
               <button className="btn btn-sm btn-light" onClick={() => openForm(rec)}>

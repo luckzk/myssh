@@ -7,6 +7,7 @@ const OS_ICON: Record<string, string> = {
 }
 export const PROTO_ICON: Record<string, string> = {
   ssh: 'bx-terminal',
+  docker: 'bxl-docker',
   rdp: 'bx-windows',
   vnc: 'bx-desktop',
   telnet: 'bx-chip',

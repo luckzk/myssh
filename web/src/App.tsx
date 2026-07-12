@@ -9,7 +9,6 @@ import AssetPage from './pages/AssetPage'
 import CredentialPage from './pages/CredentialPage'
 import TerminalPage from './pages/TerminalPage'
 import GraphicsPage from './pages/GraphicsPage'
-import DockerManagerPage from './pages/docker/DockerManagerPage'
 import AccessWorkspace from './pages/access/AccessWorkspace'
 import SettingPage from './pages/SettingPage'
 import OfflineSessionPage from './pages/OfflineSessionPage'
@@ -82,15 +81,6 @@ export default function App() {
         element={
           <RequireAuth>
             <GraphicsPage />
-          </RequireAuth>
-        }
-      />
-      {/* 资产级 Docker 管理器，全屏独立页 */}
-      <Route
-        path="/docker/:assetId"
-        element={
-          <RequireAuth>
-            <DockerManagerPage />
           </RequireAuth>
         }
       />
