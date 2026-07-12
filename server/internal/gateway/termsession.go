@@ -114,4 +114,10 @@ func (s *sshTermSession) Close() error {
 	return nil
 }
 
+// SSHClient 暴露底层 SSH 客户端，供复用（如在同一连接上开 SFTP 子系统，免二次拨号）。
+func (s *sshTermSession) SSHClient() *ssh.Client { return s.client }
+
+// SSHClientProvider 由持有 *ssh.Client 的 TermSession 实现（仅 SSH）；用于复用底层连接。
+type SSHClientProvider interface{ SSHClient() *ssh.Client }
+
 var errNotSupported = errors.New("该操作在当前协议下不支持")

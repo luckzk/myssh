@@ -64,6 +64,33 @@ func (m *SFTPManager) Get(sessionID string, target SSHTarget, opts ...SSHOptions
 	return conn, nil
 }
 
+// GetOnClient 在已存在的 SSH 客户端上开 SFTP 子系统（免二次拨号，首开更快）。
+// 返回的 SFTPConn 不持有 ssh（ssh=nil）：Close 只关 sftp，不影响调用方连接（如终端会话）。
+func (m *SFTPManager) GetOnClient(sessionID string, client *ssh.Client) (*SFTPConn, error) {
+	m.mu.Lock()
+	if c, ok := m.conns[sessionID]; ok {
+		m.mu.Unlock()
+		return c, nil
+	}
+	m.mu.Unlock()
+
+	sc, err := sftp.NewClient(client)
+	if err != nil {
+		return nil, err
+	}
+	conn := &SFTPConn{ssh: nil, Sftp: sc}
+
+	m.mu.Lock()
+	if existing, ok := m.conns[sessionID]; ok { // 双检
+		m.mu.Unlock()
+		_ = sc.Close()
+		return existing, nil
+	}
+	m.conns[sessionID] = conn
+	m.mu.Unlock()
+	return conn, nil
+}
+
 // Close 关闭并移除某会话的 SFTP 连接。
 func (m *SFTPManager) Close(sessionID string) {
 	m.mu.Lock()

@@ -135,6 +135,17 @@ func (h *Handler) connForSession(sid string) (*gateway.SFTPConn, *model.ConnSess
 	if err := h.store.DB.First(&sess, "id = ?", sid).Error; err != nil {
 		return nil, nil, fmt.Errorf("会话不存在")
 	}
+	// 优先复用该会话终端已建立的 SSH 连接，在其上开 SFTP 子系统，免二次拨号（首开更快）。
+	if live := h.getLive(sid); live != nil {
+		if p, ok := live.conn.(gateway.SSHClientProvider); ok {
+			if client := p.SSHClient(); client != nil {
+				if conn, err := h.sftp.GetOnClient(sid, client); err == nil {
+					return conn, &sess, nil
+				}
+				// 复用失败则退回新建
+			}
+		}
+	}
 	var a model.Asset
 	if err := h.store.DB.First(&a, "id = ?", sess.AssetID).Error; err != nil {
 		return nil, nil, fmt.Errorf("资产不存在")
