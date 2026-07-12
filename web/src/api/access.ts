@@ -29,37 +29,6 @@ export interface ProcInfo {
   rssKB: number
 }
 
-export interface DockerContainer {
-  id: string
-  name: string
-  image: string
-  state: string
-  status: string
-  cpu: string
-  memUsage: string
-  memPct: number
-}
-export interface DockerInfo {
-  serverVersion: string
-  containers: number
-  running: number
-  stopped: number
-  images: number
-  driver: string
-  os: string
-  arch: string
-  ncpu: number
-  memTotalKB: number
-}
-export interface DockerResp {
-  available: boolean
-  daemonOk?: boolean
-  info?: DockerInfo
-  containers?: DockerContainer[]
-  images?: DockerImage[]
-  volumes?: DockerVolume[]
-}
-
 export interface GpuInfo {
   index: number
   name: string
@@ -81,16 +50,6 @@ export interface GpuResp {
   gpus: GpuInfo[]
 }
 
-export interface DockerImage {
-  id: string
-  repo: string
-  tag: string
-  size: string
-}
-export interface DockerVolume {
-  name: string
-  driver: string
-}
 
 export interface PortForward {
   id: string
@@ -116,10 +75,6 @@ export const accessApi = {
     api.get(`/access/stats?sessionId=${encodeURIComponent(sessionId)}`),
   processes: (sessionId: string, sort: 'cpu' | 'mem' = 'cpu'): Promise<{ processes: ProcInfo[]; total: number }> =>
     api.get(`/access/processes?sessionId=${encodeURIComponent(sessionId)}&sort=${sort}`),
-  docker: (sessionId: string): Promise<DockerResp> =>
-    api.get(`/access/docker?sessionId=${encodeURIComponent(sessionId)}`),
-  dockerAction: (sessionId: string, id: string, action: 'start' | 'stop' | 'restart'): Promise<{ ok: boolean }> =>
-    api.post('/access/docker/action', { sessionId, id, action }),
   gpu: (sessionId: string): Promise<GpuResp> =>
     api.get(`/access/gpu?sessionId=${encodeURIComponent(sessionId)}`),
   share: (sessionId: string): Promise<{ token: string; url: string }> =>

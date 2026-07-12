@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { accessApi } from '../../api/access'
-import { toast } from '../../ui'
 
 const fmtBytes = (b: number) => {
   if (b >= 1 << 30) return (b / (1 << 30)).toFixed(1) + 'G'
@@ -249,167 +248,6 @@ function ProcessTab({ sessionId, active }: { sessionId: string; active: boolean 
   )
 }
 
-// ================= Docker =================
-function DockerTab({ sessionId, active }: { sessionId: string; active: boolean }) {
-  const qc = useQueryClient()
-  const [sub, setSub] = useState<'containers' | 'images' | 'volumes'>('containers')
-  const [q, setQ] = useState('')
-  const [busy, setBusy] = useState('')
-
-  const { data, isError, error } = useQuery({
-    queryKey: ['host-docker', sessionId],
-    queryFn: () => accessApi.docker(sessionId),
-    enabled: active && !!sessionId,
-    refetchInterval: 3000,
-  })
-
-  if (isError) return <Hint danger>采集失败：{(error as any)?.message}</Hint>
-  if (!data) return <Hint>采集中…</Hint>
-  if (!data.available) return <Hint>未获取到 Docker（该主机未安装或无权限）</Hint>
-
-  const info = data.info
-  const containers = data.containers || []
-  const images = data.images || []
-  const volumes = data.volumes || []
-
-  const act = async (id: string, action: 'start' | 'stop' | 'restart') => {
-    setBusy(id + action)
-    try {
-      await accessApi.dockerAction(sessionId, id, action)
-      toast.success('操作成功')
-      qc.invalidateQueries({ queryKey: ['host-docker', sessionId] })
-    } catch (e: any) {
-      toast.error('操作失败：' + (e?.message || ''))
-    } finally {
-      setBusy('')
-    }
-  }
-  const Act = ({ id, action, icon }: { id: string; action: 'start' | 'stop' | 'restart'; icon: string }) => (
-    <button
-      onClick={() => act(id, action)}
-      disabled={busy === id + action}
-      title={{ start: '启动', stop: '停止', restart: '重启' }[action]}
-      style={{ background: '#1E1F22', border: '1px solid #34363a', borderRadius: 6, color: '#9ca3af', width: 26, height: 24, cursor: 'pointer' }}
-    >
-      <i className={`bx ${busy === id + action ? 'bx-loader-alt bx-spin' : icon}`} style={{ fontSize: 14 }} />
-    </button>
-  )
-
-  const SubTab = ({ id, label, n }: { id: typeof sub; label: string; n: number }) => (
-    <button
-      onClick={() => { setSub(id); setQ('') }}
-      style={{
-        fontSize: 12, padding: '3px 10px', borderRadius: 6, cursor: 'pointer', border: '1px solid #34363a',
-        background: sub === id ? '#845adf' : '#26282B', color: sub === id ? '#fff' : '#9ca3af',
-      }}
-    >
-      {label} {n}
-    </button>
-  )
-
-  const ql = q.toLowerCase()
-  const shownC = containers.filter((c) => !q || c.name.toLowerCase().includes(ql) || c.image.toLowerCase().includes(ql))
-  const shownI = images.filter((i) => !q || `${i.repo}:${i.tag}`.toLowerCase().includes(ql))
-  const shownV = volumes.filter((v) => !q || v.name.toLowerCase().includes(ql))
-
-  return (
-    <>
-      {info && data.daemonOk ? (
-        <Card icon="bxl-docker" title={`Docker${info.serverVersion ? ' ' + info.serverVersion : ''}`}>
-          <div className="d-flex gap-3" style={{ fontSize: 12, color: '#9ca3af' }}>
-            <span><i className="bx bxs-circle me-1" style={{ color: '#22c55e', fontSize: 8 }} />运行 {info.running}</span>
-            <span><i className="bx bxs-circle me-1" style={{ color: '#6b7280', fontSize: 8 }} />停止 {info.stopped}</span>
-            <span className="ms-auto"><i className="bx bx-layer me-1" />镜像 {info.images}</span>
-          </div>
-          {(info.driver || info.os) && (
-            <div className="d-flex flex-wrap mt-2" style={{ fontSize: 11, color: '#6b7280', gap: '2px 12px' }}>
-              {info.driver && <span>存储 {info.driver}</span>}
-              {info.os && <span>{info.os}</span>}
-              {info.arch && <span>{info.arch}</span>}
-              {info.memTotalKB > 0 && <span>{info.ncpu} 核 / {fmtKB(info.memTotalKB)}</span>}
-            </div>
-          )}
-        </Card>
-      ) : (
-        <Hint danger>Docker 守护进程未运行或无权限</Hint>
-      )}
-
-      {data.daemonOk && (
-        <>
-          <div className="d-flex gap-2 mb-2">
-            <SubTab id="containers" label="容器" n={containers.length} />
-            <SubTab id="images" label="镜像" n={images.length} />
-            <SubTab id="volumes" label="卷" n={volumes.length} />
-          </div>
-          <SearchInput value={q} onChange={setQ} placeholder={`搜索${sub === 'containers' ? '容器' : sub === 'images' ? '镜像' : '卷'}…`} />
-
-          {sub === 'containers' && (shownC.length === 0 ? (
-            <div style={{ color: '#6b7280', fontSize: 12, textAlign: 'center', padding: 8 }}>{containers.length ? '无匹配容器' : '暂无容器'}</div>
-          ) : shownC.map((ct) => {
-            const running = ct.state === 'running'
-            const c = running ? '#22c55e' : '#6b7280'
-            return (
-              <div key={ct.id} className="rounded mb-2" style={{ background: '#26282B', border: '1px solid #34363a', borderLeft: `3px solid ${c}`, overflow: 'hidden' }}>
-                <div className="p-2">
-                  <div className="d-flex align-items-center gap-2 mb-1">
-                    <span className="text-truncate fw-medium" style={{ color: '#e5e7eb', fontSize: 13, flex: 1 }} title={ct.name}>{ct.name}</span>
-                    <span style={{ fontSize: 10, color: c, background: `${c}22`, padding: '1px 6px', borderRadius: 4 }}>{running ? '运行中' : '已退出'}</span>
-                  </div>
-                  <div className="d-flex align-items-center gap-2 mb-1">
-                    <span className="text-truncate" style={{ color: '#6b7280', fontSize: 11, flex: 1 }} title={ct.image}>{ct.image}</span>
-                    <span style={{ color: '#5b5f66', fontSize: 10 }}>{ct.id}</span>
-                  </div>
-                  {running && (
-                    <div className="d-flex align-items-center gap-2 mb-1" style={{ fontSize: 11, color: '#9ca3af' }}>
-                      <i className="bx bx-chip" style={{ color: '#6ea8fe' }} />
-                      <span style={{ width: 42 }}>{ct.cpu || '-'}</span>
-                      <div style={{ flex: 1 }}><Bar pct={ct.memPct} /></div>
-                      <span style={{ minWidth: 78, textAlign: 'right' }}>{ct.memUsage || '-'}</span>
-                    </div>
-                  )}
-                  <div className="d-flex gap-1 justify-content-end">
-                    {running ? (
-                      <>
-                        <Act id={ct.id} action="restart" icon="bx-refresh" />
-                        <Act id={ct.id} action="stop" icon="bx-stop" />
-                      </>
-                    ) : (
-                      <Act id={ct.id} action="start" icon="bx-play" />
-                    )}
-                  </div>
-                </div>
-              </div>
-            )
-          }))}
-
-          {sub === 'images' && (shownI.length === 0 ? (
-            <div style={{ color: '#6b7280', fontSize: 12, textAlign: 'center', padding: 8 }}>{images.length ? '无匹配镜像' : '暂无镜像'}</div>
-          ) : shownI.map((im, i) => (
-            <div key={im.id + i} className="rounded mb-2 p-2 d-flex align-items-center gap-2" style={{ background: '#26282B', border: '1px solid #34363a' }}>
-              <i className="bx bx-layer" style={{ color: '#6ea8fe' }} />
-              <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                <div className="text-truncate" style={{ color: '#e5e7eb', fontSize: 12 }} title={`${im.repo}:${im.tag}`}>{im.repo}<span style={{ color: '#6b7280' }}>:{im.tag}</span></div>
-                <div style={{ color: '#5b5f66', fontSize: 10 }}>{im.id}</div>
-              </div>
-              <span style={{ color: '#9ca3af', fontSize: 11 }}>{im.size}</span>
-            </div>
-          )))}
-
-          {sub === 'volumes' && (shownV.length === 0 ? (
-            <div style={{ color: '#6b7280', fontSize: 12, textAlign: 'center', padding: 8 }}>{volumes.length ? '无匹配卷' : '暂无数据卷'}</div>
-          ) : shownV.map((v, i) => (
-            <div key={v.name + i} className="rounded mb-2 p-2 d-flex align-items-center gap-2" style={{ background: '#26282B', border: '1px solid #34363a' }}>
-              <i className="bx bx-hdd" style={{ color: '#6ea8fe' }} />
-              <span className="text-truncate flex-grow-1" style={{ color: '#e5e7eb', fontSize: 12 }} title={v.name}>{v.name}</span>
-              <span style={{ color: '#6b7280', fontSize: 11 }}>{v.driver}</span>
-            </div>
-          )))}
-        </>
-      )}
-    </>
-  )
-}
-
 // ================= GPU =================
 function GpuTab({ sessionId, active }: { sessionId: string; active: boolean }) {
   const { data, isError, error } = useQuery({
@@ -484,7 +322,6 @@ function GpuTab({ sessionId, active }: { sessionId: string; active: boolean }) {
 const TABS = [
   { id: 'overview', label: '总览', icon: 'bx-bar-chart-alt-2' },
   { id: 'process', label: '进程', icon: 'bx-list-ul' },
-  { id: 'docker', label: 'Docker', icon: 'bxl-docker' },
   { id: 'gpu', label: 'GPU', icon: 'bx-chip' },
 ] as const
 
@@ -526,7 +363,6 @@ export default function StatsPanel({ sessionId, open }: { sessionId: string; ope
           <>
             {tab === 'overview' && <OverviewTab sessionId={sessionId} active={open} />}
             {tab === 'process' && <ProcessTab sessionId={sessionId} active={open} />}
-            {tab === 'docker' && <DockerTab sessionId={sessionId} active={open} />}
             {tab === 'gpu' && <GpuTab sessionId={sessionId} active={open} />}
           </>
         )}

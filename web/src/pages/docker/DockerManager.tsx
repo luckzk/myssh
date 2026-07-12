@@ -149,7 +149,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-export default function DockerManager({ assetId, assetName, mode }: { assetId: string; assetName?: string; mode: 'panel' | 'page' }) {
+export default function DockerManager({ assetId, assetName, mode, active = true }: { assetId: string; assetName?: string; mode: 'panel' | 'page'; active?: boolean }) {
   const qc = useQueryClient()
   const [section, setSection] = useState<Section>('containers')
   const [q, setQ] = useState('')
@@ -165,7 +165,7 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
   const openExec = (id: string, name: string) => setStream({ url: dockerWsUrl(assetId, 'exec', { id }), interactive: true, title: `终端 · ${name}`, icon: 'bx-terminal' })
   const openPull = (ref: string) => setStream({ url: dockerWsUrl(assetId, 'pull', { ref }), interactive: false, title: `拉取 · ${ref}`, icon: 'bx-download' })
 
-  const ov = useQuery({ queryKey: ['docker-ov', assetId], queryFn: () => dockerApi.overview(assetId), refetchInterval: 5000 })
+  const ov = useQuery({ queryKey: ['docker-ov', assetId], queryFn: () => dockerApi.overview(assetId), enabled: active, refetchInterval: active ? 5000 : false })
   const list = useQuery({
     queryKey: ['docker-list', assetId, section],
     queryFn: () =>
@@ -175,16 +175,16 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
             : section === 'volumes' ? dockerApi.volumes(assetId)
               : section === 'compose' ? dockerApi.compose(assetId)
                 : Promise.resolve({ available: true } as any),
-    enabled: section !== 'overview',
-    refetchInterval: section === 'containers' ? 3000 : 8000,
+    enabled: active && section !== 'overview',
+    refetchInterval: active && section === 'containers' ? 3000 : active ? 8000 : false,
   })
 
   // 占用率单独异步拉取（docker stats 慢），列表先出、占用率随后补齐
   const statsQ = useQuery({
     queryKey: ['docker-cstats', assetId],
     queryFn: () => dockerApi.containerStats(assetId),
-    enabled: section === 'containers',
-    refetchInterval: 5000,
+    enabled: active && section === 'containers',
+    refetchInterval: active ? 5000 : false,
   })
   const statsById: Record<string, any> = {}
   for (const s of statsQ.data?.stats || []) statsById[s.id] = s
@@ -269,7 +269,7 @@ export default function DockerManager({ assetId, assetName, mode }: { assetId: s
         {notAvail ? (
           <Hint danger>{unavailText}</Hint>
         ) : section === 'overview' ? (
-          <OverviewSection assetId={assetId} info={info} daemonOk={ov.data?.daemonOk} onPrune={(t) => run(t, 'prune', undefined, undefined, true)} />
+          <OverviewSection assetId={assetId} active={active} info={info} daemonOk={ov.data?.daemonOk} onPrune={(t) => run(t, 'prune', undefined, undefined, true)} />
         ) : section === 'compose' ? (
           <ComposeSection data={list.data as any} error={list.isError ? (list.error as any) : null} onAction={doCompose}
             onViewFile={(path, name) => setViewCompose({ path, name })} />
@@ -320,8 +320,8 @@ const PRUNE_TARGETS: { type: DockerObjType; label: string }[] = [
   { type: 'builder', label: '构建缓存' },
 ]
 
-function OverviewSection({ assetId, info, daemonOk, onPrune }: { assetId: string; info?: any; daemonOk?: boolean; onPrune: (t: DockerObjType) => void }) {
-  const df = useQuery({ queryKey: ['docker-df', assetId], queryFn: () => dockerApi.df(assetId), enabled: !!daemonOk })
+function OverviewSection({ assetId, active, info, daemonOk, onPrune }: { assetId: string; active: boolean; info?: any; daemonOk?: boolean; onPrune: (t: DockerObjType) => void }) {
+  const df = useQuery({ queryKey: ['docker-df', assetId], queryFn: () => dockerApi.df(assetId), enabled: active && !!daemonOk })
   if (!info) return <Hint>采集中…</Hint>
   if (!daemonOk) return <Hint danger>Docker 守护进程未运行或无权限</Hint>
   const cells: [string, React.ReactNode][] = [

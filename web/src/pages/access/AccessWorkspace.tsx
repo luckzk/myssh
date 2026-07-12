@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import AssetTree from './AssetTree'
 import TerminalView from './TerminalView'
 import GraphicsView from './GraphicsView'
+import DockerManager from '../docker/DockerManager'
 import type { Asset } from '../../api/resource'
 import BroadcastModal from './BroadcastModal'
 import AssetIcon from '../../components/AssetIcon'
@@ -51,6 +52,7 @@ const PANE_COUNT: Record<Layout, number> = Object.fromEntries(
   Object.entries(GRID_DIM).map(([k, [c, r]]) => [k, c * r]),
 ) as Record<Layout, number>
 const isGraphical = (p: string) => p === 'rdp' || p === 'vnc'
+const isDocker = (p: string) => p === 'docker' // Docker 管理标签（非终端，无会话）
 const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
 const emptyPane = (): Pane => ({ termIds: [], activeTermId: '' })
 
@@ -187,6 +189,8 @@ export default function AccessWorkspace() {
     })
   }
   const openAsset = (a: Asset) => addTerm({ id: uid(), assetId: a.id, name: a.name, protocol: a.protocol, logo: a.logo, os: a.os })
+  // 打开一个 Docker 管理标签（与终端标签同级，protocol=docker）
+  const openDockerTab = (a: Asset) => addTerm({ id: uid(), assetId: a.id, name: `${a.name} · Docker`, protocol: 'docker', logo: a.logo, os: a.os })
 
   // 资产页「连接」跨窗口请求：在已打开的工作台里新建一个工作组，不重载、不断开已有终端。
   const openInNewGroup = (t: Term) => {
@@ -283,7 +287,7 @@ export default function AccessWorkspace() {
   }
   const termById = (id: string) => activeGroup?.terms.find((t) => t.id === id)
 
-  const groupSshTerms = (activeGroup?.terms ?? []).filter((t) => !isGraphical(t.protocol))
+  const groupSshTerms = (activeGroup?.terms ?? []).filter((t) => !isGraphical(t.protocol) && !isDocker(t.protocol))
   const activeAssetId = termById(panes[activeGroup?.activePane ?? 0]?.activeTermId || '')?.assetId
 
   const broadcast = (text: string) => {
@@ -309,7 +313,7 @@ export default function AccessWorkspace() {
 
   return (
     <div className="d-flex" style={{ height: '100vh', background: '#1E1F22' }}>
-      <AssetTree currentAssetId={activeAssetId} onOpen={openAsset} />
+      <AssetTree currentAssetId={activeAssetId} onOpen={openAsset} onOpenDocker={openDockerTab} />
 
       <div className="d-flex flex-column flex-grow-1" style={{ minWidth: 0 }}>
         {/* 工作组 tab 条 + 布局/广播（右） */}
@@ -372,7 +376,9 @@ export default function AccessWorkspace() {
                   )}
                 </div>
                 <div style={{ flex: 1, minHeight: 0 }}>
-                  {isGraphical(t.protocol) ? (
+                  {isDocker(t.protocol) ? (
+                    <DockerManager assetId={t.assetId} assetName={t.name} mode="page" active={visible} />
+                  ) : isGraphical(t.protocol) ? (
                     <GraphicsView assetId={t.assetId} name={t.name} active={visible} onClose={() => closeTerm(t.id)} />
                   ) : (
                     <TerminalView assetId={t.assetId} name={t.name} termId={t.id} compact initCwd={t.initCwd} existingSessionId={t.sessionId} onSession={(sid) => setTermSession(t.id, sid)} active={visible} onClose={() => closeTerm(t.id)} />
@@ -453,7 +459,7 @@ function PaneTabs({ paneIndex, pane, terms, labelOf, draggingId, onDragStartTerm
             style={{ cursor: dragging ? 'grabbing' : 'pointer', opacity: dragging ? 0.45 : 1, borderRight: '1px solid #2b2d30', color: act ? '#fff' : '#9ca3af', background: act ? '#1E1F22' : 'transparent', borderBottom: act ? '2px solid #845adf' : '2px solid transparent', whiteSpace: 'nowrap', transition: 'opacity .12s' }}
             title="拖拽可移动到其它分屏，或拖到上方工作组标签跨组移动"
           >
-            <AssetIcon asset={t} size={14} />
+            {isDocker(t.protocol) ? <i className="bx bxl-docker" style={{ fontSize: 15, color: '#2496ed' }} /> : <AssetIcon asset={t} size={14} />}
             <span style={{ fontSize: 12 }}>{labelOf(t)}</span>
             <i className="bx bx-x" style={{ fontSize: 14, opacity: 0.7 }} onClick={(e) => { e.stopPropagation(); onCloseTerm(id) }} />
           </div>

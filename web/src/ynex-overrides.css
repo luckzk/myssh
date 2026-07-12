@@ -111,6 +111,17 @@
 .at-item {
   position: relative;
 }
+/* 资源树里 ssh 资产的 Docker 入口：悬停行才显现 */
+.at-item .at-docker {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.at-item:hover .at-docker {
+  opacity: 1;
+}
+.at-item .at-docker:hover {
+  filter: brightness(1.3);
+}
 /* 暗色资源树缩进 + 引导线 */
 .atree-children {
   margin-left: 9px;
