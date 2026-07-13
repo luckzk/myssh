@@ -56,3 +56,8 @@ features:
 按侧边栏顺序从 **01 项目概览** 读起即可。前两章是调研结论，中间是架构与模块设计，最后是部署、路线图与风险。
 
 > ⚠️ 说明：本方案为**技术学习 / 复刻规划**用途。原项目遵循其开源许可证，复制实现时请遵守相应协议与所在地法律法规（尤其是会话录制相关的合规要求）。
+
+## 调研 / 设计笔记
+
+- [Netcatty 借鉴分析](/netcatty-analysis) —— 对标 Electron 桌面 SSH 客户端 Netcatty，评估可借鉴点（结论：值得做 AI 运维 Agent）。
+- [Docker 资产:连接 Docker 的几种方式](/docker-connection-methods) —— 触达远程 Docker daemon 的 4 种方式对比与选型（现状：SSH + CLI）。
