@@ -96,8 +96,6 @@ func (h *Handler) RegisterAccess(g *echo.Group) {
 	g.POST("/sessions/:id/share", h.shareSession)
 	g.GET("/stats", h.stats)
 	g.GET("/processes", h.processes)
-	g.GET("/docker", h.dockerPS)
-	g.POST("/docker/action", h.dockerAction)
 	// 资产级 Docker 管理（不依赖已开会话，按 assetId 鉴权）
 	g.GET("/docker/:assetId/overview", h.dockerOverview)
 	g.GET("/docker/:assetId/containers", h.dockerContainers)

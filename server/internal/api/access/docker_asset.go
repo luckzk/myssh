@@ -15,7 +15,6 @@ import (
 )
 
 // 资产级 Docker 管理：不依赖已打开的终端会话，直接按 assetId 解析目标 + 鉴权后经 SSH 跑 docker 命令。
-// 与 monitor.go 里 sessionId 版的 dockerPS/dockerAction 并存（后者供监控面板快览）。
 
 // resolveTargetByAsset 按 assetId 解析 SSH 目标：加载资产 → 访问鉴权 → 复用 resolveTarget 解密凭证。
 func (h *Handler) resolveTargetByAsset(u *model.User, assetID string) (*gateway.SSHTarget, *model.Asset, error) {
