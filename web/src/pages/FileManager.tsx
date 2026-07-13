@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fsApi, type FileInfo } from '../api/filesystem'
 import { Spinner, Empty, confirm, toast } from '../ui'
 import PermissionDialog from './access/PermissionDialog'
+
+// 代码编辑器按需加载（CodeMirror 体积较大，不进主包）
+const CodeEditor = lazy(() => import('./CodeEditor'))
 
 const fmtSize = (n: number) =>
   n > 1024 * 1024 ? `${(n / 1048576).toFixed(1)}M` : n > 1024 ? `${(n / 1024).toFixed(1)}K` : `${n}B`
@@ -217,12 +220,12 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
     }
   }
 
+  // 保存由编辑器传入内容；成功后不关闭编辑器（可继续编辑，对齐本地编辑器习惯）。
   const saveEdit = useMutation({
-    mutationFn: () => fsApi.write(sessionId, editFile!.path, editContent),
+    mutationFn: (content: string) => fsApi.write(sessionId, editFile!.path, content),
     onSuccess: () => {
       toast.success('已保存远程文件')
       refresh()
-      setEditFile(null)
     },
     onError: (err: any) => toast.error(err.message),
   })
@@ -579,25 +582,14 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
         </>
       )}
       {editFile && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.45)' }} onClick={() => setEditFile(null)} />
-          <div className="rounded shadow" style={{ position: 'fixed', inset: '7vh 7vw', zIndex: 1101, background: '#1E1F22', border: '1px solid #34363a', display: 'flex', flexDirection: 'column' }}>
-            <div className="d-flex align-items-center px-3" style={{ height: 44, borderBottom: '1px solid #34363a' }}>
-              <i className="bx bx-edit text-warning me-2" />
-              <span className="text-light text-truncate">{editFile.path}</span>
-              <button className="btn btn-sm btn-primary ms-auto me-2" disabled={saveEdit.isPending} onClick={() => saveEdit.mutate()}>
-                <i className="bx bx-save" /> 保存
-              </button>
-              <button className="term-tool" title="关闭" onClick={() => setEditFile(null)}><i className="bx bx-x" /></button>
-            </div>
-            <textarea
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              spellCheck={false}
-              style={{ flex: 1, width: '100%', resize: 'none', border: 0, outline: 'none', background: '#111316', color: '#e5e7eb', padding: 14, fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, monospace', fontSize: 13, lineHeight: 1.5 }}
-            />
-          </div>
-        </>
+        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 1101, background: 'rgba(0,0,0,.6)', color: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>加载编辑器…</div>}>
+          <CodeEditor
+            path={editFile.path}
+            initial={editContent}
+            onSave={async (content) => { try { await saveEdit.mutateAsync(content); return true } catch { return false } }}
+            onClose={() => setEditFile(null)}
+          />
+        </Suspense>
       )}
     </div>
   )
