@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import AssetTree from './AssetTree'
 import TerminalView from './TerminalView'
 import GraphicsView from './GraphicsView'
 import DockerManager from '../docker/DockerManager'
-import type { Asset } from '../../api/resource'
+import CommandPalette from './CommandPalette'
+import { assetApi, type Asset } from '../../api/resource'
 import BroadcastModal from './BroadcastModal'
 import AssetIcon from '../../components/AssetIcon'
 import { accountSessionApi, type LiveSession } from '../../api/session'
@@ -123,7 +125,9 @@ export default function AccessWorkspace() {
   const [groups, setGroups] = useState<Group[]>([])
   const [activeGroupId, setActiveGroupId] = useState('')
   const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [cmdOpen, setCmdOpen] = useState(false) // 命令面板 Ctrl+K
   const [restorable, setRestorable] = useState<LiveSession[]>([])
+  const { data: allAssets = [] } = useQuery({ queryKey: ['assets-all'], queryFn: assetApi.list })
   const [renaming, setRenaming] = useState('')
   const [dragOverPane, setDragOverPane] = useState<number | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -190,6 +194,15 @@ export default function AccessWorkspace() {
     })
   }
   const openAsset = (a: Asset) => addTerm({ id: uid(), assetId: a.id, name: a.name, protocol: a.protocol, logo: a.logo, os: a.os })
+
+  // Ctrl/⌘+K 打开命令面板
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); setCmdOpen((v) => !v) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   // 打开一个 Docker 管理标签（与终端标签同级，protocol=docker）；供侧边栏「扩大为标签」调用
   const openDockerTab = (assetId: string, name: string) => addTerm({ id: uid(), assetId, name: `${name} · Docker`, protocol: 'docker' })
 
@@ -400,6 +413,7 @@ export default function AccessWorkspace() {
       </div>
 
       <BroadcastModal open={broadcastOpen} count={groupSshTerms.length} onClose={() => setBroadcastOpen(false)} onSend={broadcast} />
+      <CommandPalette open={cmdOpen} assets={allAssets} onClose={() => setCmdOpen(false)} onPick={openAsset} />
 
       {restorable.length > 0 && (
         <>
