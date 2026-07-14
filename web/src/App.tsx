@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { TOKEN_KEY } from './api/client'
 import { MENU_META } from './menus'
@@ -67,6 +67,19 @@ const full = (el: JSX.Element) => <Suspense fallback={<FullLoading />}>{el}</Sus
 const content = (el: JSX.Element) => <Suspense fallback={<ContentLoading />}>{el}</Suspense>
 
 export default function App() {
+  // 登录态下空闲预取重 chunk（终端工作台/图形），提前进浏览器 HTTP 缓存（跨窗口共享），
+  // 之后 window.open('/access') 或点连接时秒开。
+  useEffect(() => {
+    if (!localStorage.getItem(TOKEN_KEY)) return
+    const warm = () => {
+      import('./pages/access/AccessWorkspace').catch(() => {})
+      import('./pages/TerminalPage').catch(() => {})
+    }
+    const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, o?: any) => number)
+    const id = ric ? ric(warm, { timeout: 4000 }) : window.setTimeout(warm, 2500)
+    return () => { if (ric && (window as any).cancelIdleCallback) (window as any).cancelIdleCallback(id); else clearTimeout(id) }
+  }, [])
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
