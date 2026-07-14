@@ -238,12 +238,14 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
           if (!isViewer && sid) {
             reconnectAttempts += 1
             if (reconnectAttempts <= 10) {
-              term.writeln(`\r\n\x1b[33m[连接已断开，正在宽限重连 ${reconnectAttempts}/10]\x1b[0m`)
-              reconnectTimer = setTimeout(() => wire(sid, false), 3000)
+              // 指数退避（2s→上限 15s），避免持续失败时每 3s 猛敲服务端
+              const delay = Math.min(2000 * 2 ** (reconnectAttempts - 1), 15000)
+              term.writeln(`\r\n\x1b[33m[连接已断开，${Math.round(delay / 1000)}s 后重连 ${reconnectAttempts}/10]\x1b[0m`)
+              reconnectTimer = setTimeout(() => wire(sid, false), delay)
               return
             }
           }
-          term.writeln('\r\n\x1b[31m[连接已断开]\x1b[0m')
+          term.writeln('\r\n\x1b[31m[连接已断开，可点右侧「重连」重试]\x1b[0m')
         }
       }
     }
@@ -399,11 +401,12 @@ export default function TerminalView({ assetId, name, active, viewer = false, jo
         </div>
       </div>
 
-      {statsOpen && !viewer && <StatsPanel sessionId={sessionId} open={statsOpen} />}
+      {/* open/active 双门控：后台(非当前可见)终端标签暂停监控/Docker 轮询，省远程主机开销 */}
+      {statsOpen && !viewer && <StatsPanel sessionId={sessionId} open={statsOpen && active} />}
 
       {dockerOpen && !viewer && (
         <div style={{ width: 360, flexShrink: 0, height: '100%' }}>
-          <DockerManager assetId={assetId} assetName={name} mode="panel"
+          <DockerManager assetId={assetId} assetName={name} mode="panel" active={active}
             onExpand={() => { window.dispatchEvent(new CustomEvent('nt-open-docker', { detail: { assetId, name } })); setDockerOpen(false) }} />
         </div>
       )}
