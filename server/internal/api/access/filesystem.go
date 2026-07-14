@@ -15,6 +15,7 @@ import (
 	"github.com/dushixiang/next-terminal-clone/server/internal/web"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 // RegisterFilesystem 挂载 /api/access/filesystem/*（对齐上游 filesystem-api.ts）。
@@ -36,6 +37,7 @@ func (h *Handler) RegisterFilesystem(g *echo.Group) {
 type fsWriteReq struct {
 	Filename string `json:"filename"`
 	Content  string `json:"content"`
+	Encoding string `json:"encoding"` // 空/utf-8 原样；gbk 则按 GBK 编码写入
 }
 
 func (h *Handler) fsRead(c echo.Context) error {
@@ -60,7 +62,13 @@ func (h *Handler) fsRead(c echo.Context) error {
 		return web.Fail(c, 200, 400, "编辑文件不能超过 2MB")
 	}
 	h.auditFS(sess, "read", name, int64(len(data)))
-	return web.OK(c, map[string]any{"filename": name, "content": string(data), "size": len(data)})
+	text := string(data)
+	if strings.EqualFold(c.QueryParam("encoding"), "gbk") {
+		if dec, e := simplifiedchinese.GBK.NewDecoder().Bytes(data); e == nil {
+			text = string(dec)
+		}
+	}
+	return web.OK(c, map[string]any{"filename": name, "content": text, "size": len(data)})
 }
 
 func (h *Handler) fsWrite(c echo.Context) error {
@@ -75,11 +83,17 @@ func (h *Handler) fsWrite(c echo.Context) error {
 	if len(req.Content) > 2*1024*1024 {
 		return web.Fail(c, 200, 400, "编辑文件不能超过 2MB")
 	}
+	body := req.Content
+	if strings.EqualFold(req.Encoding, "gbk") {
+		if enc, e := simplifiedchinese.GBK.NewEncoder().String(req.Content); e == nil {
+			body = enc
+		}
+	}
 	f, err := conn.Sftp.Create(req.Filename)
 	if err != nil {
 		return web.Fail(c, 200, 500, err.Error())
 	}
-	n64, werr := io.Copy(f, strings.NewReader(req.Content))
+	n64, werr := io.Copy(f, strings.NewReader(body))
 	cerr := f.Close()
 	if werr != nil {
 		return web.Fail(c, 200, 500, werr.Error())

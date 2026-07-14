@@ -36,10 +36,10 @@ export const fsApi = {
     `/api${G}/${sid}/download?filename=${encodeURIComponent(filename)}`,
   previewUrl: (sid: string, filename: string) =>
     `/api${G}/${sid}/preview?filename=${encodeURIComponent(filename)}`,
-  read: (sid: string, filename: string): Promise<{ filename: string; content: string; size: number }> =>
-    api.get(`${G}/${sid}/read?filename=${encodeURIComponent(filename)}`),
-  write: (sid: string, filename: string, content: string): Promise<{ status: string; size: number }> =>
-    api.post(`${G}/${sid}/write`, { filename, content }),
+  read: (sid: string, filename: string, encoding?: string): Promise<{ filename: string; content: string; size: number }> =>
+    api.get(`${G}/${sid}/read?filename=${encodeURIComponent(filename)}${encoding ? `&encoding=${encoding}` : ''}`),
+  write: (sid: string, filename: string, content: string, encoding?: string): Promise<{ status: string; size: number }> =>
+    api.post(`${G}/${sid}/write`, { filename, content, encoding }),
   // 上传走 multipart，单独用 fetch
   upload: async (sid: string, dir: string, file: File): Promise<{ size: number }> => {
     const fd = new FormData()

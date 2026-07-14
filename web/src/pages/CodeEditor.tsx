@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { keymap, EditorView } from '@codemirror/view'
-import type { Extension } from '@codemirror/state'
+import { EditorState, type Extension } from '@codemirror/state'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { StreamLanguage } from '@codemirror/language'
-import { confirm } from '../ui'
+import { unifiedMergeView } from '@codemirror/merge'
+import { confirm, toast } from '../ui'
 
 // 语言按需动态加载：基础编辑器包不含各语言语法，用到哪个才拉哪个（首开更快、包更小）。
 // 必须用「字面量」import 路径，Vite 才能正确分包。
@@ -70,10 +71,13 @@ const baseOf = (p: string) => p.split('/').pop() || p
 // 稳定引用：内联对象会让 react-codemirror 每次渲染都重配 → onUpdate → setState → 死循环。
 const BASIC_SETUP = { lineNumbers: true, highlightActiveLine: true, bracketMatching: true, closeBrackets: true, foldGutter: true, highlightSelectionMatches: true, searchKeymap: true }
 
-export default function CodeEditor({ path, initial, onSave, onClose }: {
+export default function CodeEditor({ path, initial, readOnly, onSave, onSaveAs, onReread, onClose }: {
   path: string
   initial: string
-  onSave: (content: string) => Promise<boolean>
+  readOnly?: boolean
+  onSave: (content: string, encoding: string) => Promise<boolean>
+  onSaveAs?: (name: string, content: string, encoding: string) => Promise<boolean>
+  onReread?: (encoding: string) => Promise<string | null>
   onClose: () => void
 }) {
   const [content, setContent] = useState(initial)
@@ -82,6 +86,9 @@ export default function CodeEditor({ path, initial, onSave, onClose }: {
   const [wrap, setWrap] = useState(false)
   const [font, setFont] = useState(13)
   const [saving, setSaving] = useState(false)
+  const [ro, setRo] = useState(!!readOnly)
+  const [diff, setDiff] = useState(false)
+  const [encoding, setEncoding] = useState('utf-8')
   const [langExt, setLangExt] = useState<Extension>([])
   const [pos, setPos] = useState({ line: 1, col: 1, sel: 0, lines: initial.split('\n').length })
   const dirty = content !== saved
@@ -95,13 +102,30 @@ export default function CodeEditor({ path, initial, onSave, onClose }: {
   }, [lang])
 
   const doSave = async () => {
-    if (saving || !dirty) return
+    if (saving || !dirty || ro) return
     setSaving(true)
-    const ok = await onSave(content)
+    const ok = await onSave(content, encoding)
     setSaving(false)
     if (ok) setSaved(content)
   }
   doSaveRef.current = doSave
+  const doSaveAs = async () => {
+    if (!onSaveAs) return
+    const name = window.prompt('另存为（同目录，输入新文件名）', baseOf(path))
+    if (!name || !name.trim()) return
+    setSaving(true)
+    const ok = await onSaveAs(name.trim(), content, encoding)
+    setSaving(false)
+    if (ok) toast.success('已另存为 ' + name.trim())
+  }
+  // 切换编码：按新编码重新读取磁盘原文（避免用错编码解码后乱码保存）
+  const changeEncoding = async (enc: string) => {
+    setEncoding(enc)
+    if (onReread) {
+      const re = await onReread(enc)
+      if (re != null) { setContent(re); setSaved(re) }
+    }
+  }
   const tryClose = async () => {
     if (dirty && !(await confirm('有未保存的修改，确定关闭？', { danger: true, okText: '放弃修改' }))) return
     onClose()
@@ -118,8 +142,11 @@ export default function CodeEditor({ path, initial, onSave, onClose }: {
       }),
     ]
     if (wrap) ext.push(EditorView.lineWrapping)
+    if (ro) ext.push(EditorState.readOnly.of(true), EditorView.editable.of(false))
+    if (diff) ext.push(unifiedMergeView({ original: saved }))
     return ext
-  }, [langExt, wrap, font])
+    // diff 用已保存内容作对照；切换 diff/编码/只读时重建
+  }, [langExt, wrap, font, ro, diff, saved])
 
   const Btn = ({ icon, title, onClick, active }: { icon: string; title: string; onClick: () => void; active?: boolean }) => (
     <button className={`term-tool${active ? ' term-tool-active' : ''}`} title={title} onClick={onClick} style={{ width: 30, height: 30, fontSize: 16 }}>
@@ -139,11 +166,18 @@ export default function CodeEditor({ path, initial, onSave, onClose }: {
           <select value={lang} onChange={(e) => setLang(e.target.value)} className="form-select form-select-sm bg-dark text-light border-secondary" style={{ width: 'auto', fontSize: 12, height: 30 }} title="语言">
             {LANG_LIST.map((l) => <option key={l} value={l}>{l}</option>)}
           </select>
+          <select value={encoding} onChange={(e) => changeEncoding(e.target.value)} className="form-select form-select-sm bg-dark text-light border-secondary" style={{ width: 'auto', fontSize: 12, height: 30 }} title="编码（切换会按新编码重读）">
+            <option value="utf-8">UTF-8</option>
+            <option value="gbk">GBK</option>
+          </select>
           <Btn icon="bx-text" title="自动换行" active={wrap} onClick={() => setWrap((v) => !v)} />
+          <Btn icon="bx-git-compare" title="对比未保存改动 (diff)" active={diff} onClick={() => setDiff((v) => !v)} />
+          <Btn icon={ro ? 'bx-lock' : 'bx-lock-open'} title={ro ? '只读（点击可编辑）' : '可编辑（点击设为只读）'} active={ro} onClick={() => setRo((v) => !v)} />
           <Btn icon="bx-zoom-out" title="缩小字号" onClick={() => setFont((f) => Math.max(10, f - 1))} />
           <Btn icon="bx-zoom-in" title="放大字号" onClick={() => setFont((f) => Math.min(24, f + 1))} />
           <span style={{ width: 1, height: 20, background: '#34363a' }} />
-          <button className="btn btn-sm btn-primary" disabled={saving || !dirty} onClick={doSave} title="保存 (Ctrl+S)">
+          {onSaveAs && <button className="btn btn-sm btn-outline-secondary" disabled={saving} onClick={doSaveAs} title="另存为"><i className="bx bx-save" /> 另存为</button>}
+          <button className="btn btn-sm btn-primary" disabled={saving || !dirty || ro} onClick={doSave} title="保存 (Ctrl+S)">
             <i className={`bx ${saving ? 'bx-loader-alt bx-spin' : 'bx-save'}`} /> 保存
           </button>
           <button className="term-tool" title="关闭" onClick={tryClose}><i className="bx bx-x" /></button>
@@ -174,8 +208,10 @@ export default function CodeEditor({ path, initial, onSave, onClose }: {
           {pos.sel > 0 && <span>已选 {pos.sel}</span>}
           <span>共 {pos.lines} 行</span>
           <span>{content.length} 字符</span>
+          {ro && <span style={{ color: '#6ea8fe' }}>只读</span>}
+          {diff && <span style={{ color: '#845adf' }}>diff</span>}
           <span className="ms-auto">{lang}</span>
-          <span>UTF-8</span>
+          <span>{encoding.toUpperCase()}</span>
           <span style={{ color: dirty ? '#f59e0b' : '#22c55e' }}>{dirty ? '未保存' : '已保存'}</span>
         </div>
       </div>

@@ -223,9 +223,9 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
     }
   }
 
-  // 保存由编辑器传入内容；成功后不关闭编辑器（可继续编辑，对齐本地编辑器习惯）。
+  // 保存由编辑器传入内容 + 编码；成功后不关闭编辑器（可继续编辑，对齐本地编辑器习惯）。
   const saveEdit = useMutation({
-    mutationFn: (content: string) => fsApi.write(sessionId, editFile!.path, content),
+    mutationFn: ({ content, encoding }: { content: string; encoding: string }) => fsApi.write(sessionId, editFile!.path, content, encoding),
     onSuccess: () => {
       toast.success('已保存远程文件')
       refresh()
@@ -589,7 +589,13 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
           <CodeEditor
             path={editFile.path}
             initial={editContent}
-            onSave={async (content) => { try { await saveEdit.mutateAsync(content); return true } catch { return false } }}
+            onSave={async (content, encoding) => { try { await saveEdit.mutateAsync({ content, encoding }); return true } catch { return false } }}
+            onSaveAs={async (name, content, encoding) => {
+              const dir = parentOf(editFile.path)
+              const dest = dir === '.' ? name : `${dir}/${name}`
+              try { await fsApi.write(sessionId, dest, content, encoding); refresh(); return true } catch (e: any) { toast.error(e.message); return false }
+            }}
+            onReread={async (encoding) => { try { return (await fsApi.read(sessionId, editFile!.path, encoding)).content } catch { return null } }}
             onClose={() => setEditFile(null)}
           />
         </Suspense>
