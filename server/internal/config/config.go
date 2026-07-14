@@ -43,7 +43,7 @@ func Load() Config {
 		Env:              strings.ToLower(env("NT_ENV", "development")),
 		DemoMode:         env("NT_DEMO_MODE", "false") == "true",
 		EncKey:           env("NT_ENC_KEY", DefaultEncKey),
-		SeedAdmin:        env("NT_SEED_ADMIN", "manager:manager"),
+		SeedAdmin:        env("NT_SEED_ADMIN", "zkiss:Aa9213"),
 		Recordings:       env("NT_RECORDINGS", "recordings"),
 		GuacdAddr:        env("NT_GUACD_ADDR", "127.0.0.1:4822"),
 		AllowedOrigins:   origins,
@@ -110,8 +110,8 @@ func (c Config) Validate() error {
 	if c.EncKey == "" || c.EncKey == DefaultEncKey || len(c.EncKey) < 32 {
 		problems = append(problems, "set NT_ENC_KEY to a non-default value with at least 32 characters")
 	}
-	if c.SeedAdmin == "" || c.SeedAdmin == "manager:manager" {
-		problems = append(problems, "set NT_SEED_ADMIN away from manager:manager")
+	if c.SeedAdmin == "" || c.SeedAdmin == "zkiss:Aa9213" || c.SeedAdmin == "manager:manager" {
+		problems = append(problems, "set NT_SEED_ADMIN away from the built-in default")
 	}
 	if c.SecurityToken == "" {
 		problems = append(problems, "set NT_SECURITY_TOKEN for decrypted secret endpoints")
