@@ -25,6 +25,15 @@ const baseOf = (p: string) => {
   const i = p.lastIndexOf('/')
   return i >= 0 ? p.slice(i + 1) : p
 }
+// 把当前目录拆成可点击的面包屑
+function crumbs(root: string): { label: string; path: string }[] {
+  if (root === '.' || root === '') return [{ label: '~', path: '.' }]
+  const parts = root.split('/').filter(Boolean)
+  const list = [{ label: '/', path: '/' }]
+  let acc = ''
+  for (const p of parts) { acc += '/' + p; list.push({ label: p, path: acc }) }
+  return list
+}
 
 function loadBookmarks(): string[] {
   try {
@@ -196,6 +205,7 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
   const [queue, setQueue] = useState<{ id: string; name: string; status: 'queued' | 'uploading' | 'done' | 'error'; error?: string }[]>([])
   const [dragOver, setDragOver] = useState(false) // 外部文件拖入上传
   const [selected, setSelected] = useState<Set<string>>(new Set()) // 批量选中的文件路径
+  const [pathEdit, setPathEdit] = useState(false) // 路径栏:面包屑 / 手动输入切换
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const uploadTargetRef = useRef<string>('.') // 触发上传时锁定目标目录
@@ -429,18 +439,32 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
         </button>
       </div>
 
-      {/* 路径输入 */}
+      {/* 路径栏：面包屑（可点逐级跳）/ 手动输入 切换 */}
       <div className="px-2 pt-2" style={{ flexShrink: 0 }}>
         <div className="d-flex align-items-center gap-1">
           <i className="bx bx-folder-open text-info" />
-          <input
-            className="form-control form-control-sm bg-dark text-light border-secondary"
-            style={{ fontSize: 12, height: 28 }}
-            value={pathInput}
-            onChange={(e) => setPathInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') navigate(pathInput.trim() || '.') }}
-            placeholder="输入路径后回车跳转"
-          />
+          {pathEdit ? (
+            <input
+              autoFocus
+              className="form-control form-control-sm bg-dark text-light border-secondary"
+              style={{ fontSize: 12, height: 28 }}
+              value={pathInput}
+              onChange={(e) => setPathInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { navigate(pathInput.trim() || '.'); setPathEdit(false) } else if (e.key === 'Escape') setPathEdit(false) }}
+              onBlur={() => setPathEdit(false)}
+              placeholder="输入路径后回车跳转"
+            />
+          ) : (
+            <div className="d-flex align-items-center flex-grow-1 text-truncate" style={{ height: 28, background: '#111316', borderRadius: 6, padding: '0 8px', fontSize: 12, overflow: 'hidden' }} title="点击段可跳转，双击可编辑" onDoubleClick={() => setPathEdit(true)}>
+              {crumbs(root).map((c, i, arr) => (
+                <span key={c.path} className="d-flex align-items-center" style={{ flexShrink: 0 }}>
+                  {i > 0 && <i className="bx bx-chevron-right" style={{ color: '#5b5f66', fontSize: 14 }} />}
+                  <span style={{ color: i === arr.length - 1 ? '#e5e7eb' : '#9ca3af', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => navigate(c.path)}>{c.label}</span>
+                </span>
+              ))}
+              <i className="bx bx-edit ms-auto" style={{ color: '#5b5f66', fontSize: 13, cursor: 'pointer', flexShrink: 0 }} onClick={() => setPathEdit(true)} />
+            </div>
+          )}
         </div>
       </div>
 

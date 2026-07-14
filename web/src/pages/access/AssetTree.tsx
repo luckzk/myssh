@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { assetApi, assetGroupApi, type Asset, type GroupNode } from '../../api/resource'
 import GroupIcon from '../../components/GroupIcon'
 import AssetIcon from '../../components/AssetIcon'
+import { toast } from '../../ui'
 
 // 协议 → 图标 + 徽章色（对齐 demo：SSH 绿 / RDP 紫 / VNC 黄 / Telnet 蓝）
 const PROTO: Record<string, { icon: string; color: string }> = {
@@ -29,6 +30,9 @@ export default function AssetTree({ currentAssetId, onOpen }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [kw, setKw] = useState('')
+  const [menu, setMenu] = useState<{ x: number; y: number; asset: Asset } | null>(null)
+  const copy = (t: string, label: string) => { navigator.clipboard?.writeText(t).then(() => toast.success('已复制' + label)).catch(() => {}); setMenu(null) }
+  const openDocker = (a: Asset) => { window.dispatchEvent(new CustomEvent('nt-open-docker', { detail: { assetId: a.id, name: a.name } })); setMenu(null) }
 
   const qc = useQueryClient()
   const { data: assets = [], isFetching } = useQuery({ queryKey: ['assets-all'], queryFn: assetApi.list })
@@ -64,6 +68,7 @@ export default function AssetTree({ currentAssetId, onOpen }: Props) {
         style={{ background: a.id === currentAssetId ? '#34363a' : undefined }}
         title={`${a.name} (${a.ip})`}
         onClick={() => open(a)}
+        onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, asset: a }) }}
       >
         <AssetIcon asset={a} size={16} color="#9ca3af" />
         <span className="flex-grow-1 text-truncate" style={{ fontSize: 13 }}>{a.name}</span>
@@ -129,6 +134,7 @@ export default function AssetTree({ currentAssetId, onOpen }: Props) {
             placeholder="搜索资产 / IP"
             value={kw}
             onChange={(e) => setKw(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { const first = assets.filter(match)[0]; if (first) open(first) } }}
           />
           {kw && (
             <button className="btn btn-sm btn-dark border-secondary" onClick={() => setKw('')}><i className="bx bx-x" /></button>
@@ -152,6 +158,19 @@ export default function AssetTree({ currentAssetId, onOpen }: Props) {
         )}
         {assets.filter(match).length === 0 && <div className="text-muted px-3 py-2" style={{ fontSize: 12 }}>{q ? '无匹配资产' : '暂无资产'}</div>}
       </div>
+
+      {/* 资产右键菜单 */}
+      {menu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1090 }} onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null) }} />
+          <div className="py-1 rounded shadow" style={{ position: 'fixed', left: Math.min(menu.x, window.innerWidth - 180), top: Math.min(menu.y, window.innerHeight - 180), zIndex: 1091, minWidth: 160, background: '#26282B', border: '1px solid #34363a' }}>
+            <button className="ctx-item" onClick={() => { open(menu.asset); setMenu(null) }}><i className="bx bx-link-external me-2" />连接</button>
+            {menu.asset.protocol === 'ssh' && <button className="ctx-item" onClick={() => openDocker(menu.asset)}><i className="bx bxl-docker me-2" />Docker 管理</button>}
+            <button className="ctx-item" onClick={() => copy(menu.asset.ip || '', '地址')}><i className="bx bx-copy me-2" />复制地址</button>
+            <button className="ctx-item" onClick={() => copy(menu.asset.name, '名称')}><i className="bx bx-copy-alt me-2" />复制名称</button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
