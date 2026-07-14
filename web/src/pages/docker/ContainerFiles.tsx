@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { dockerApi } from '../../api/docker'
+import { useEscape } from '../../ui'
 
 // 容器内文件浏览（docker exec ls/cat/cp）。以覆盖层形式嵌在管理器内部。只读:浏览 + 查看 + 下载。
 const C = { bg: '#1E1F22', card: '#26282B', border: '#34363a', text: '#e5e7eb', muted: '#9ca3af', dim: '#6b7280' }
@@ -17,6 +18,7 @@ const isTextName = (n: string) => /\.(txt|log|conf|cfg|ini|json|ya?ml|xml|md|sh|
 export default function ContainerFiles({ assetId, id, name, onClose }: { assetId: string; id: string; name: string; onClose: () => void }) {
   const [path, setPath] = useState('/')
   const [view, setView] = useState<null | { name: string; content: string }>(null)
+  useEscape(() => (view ? setView(null) : onClose())) // 先关文件预览，再关浏览器
   const [loadingFile, setLoadingFile] = useState('')
   const { data, isError, error, isFetching, refetch } = useQuery({
     queryKey: ['docker-fs', assetId, id, path],

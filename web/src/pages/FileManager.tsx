@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fsApi, type FileInfo } from '../api/filesystem'
-import { Spinner, Empty, confirm, toast } from '../ui'
+import { Spinner, Empty, confirm, toast, useEscape } from '../ui'
 import PermissionDialog from './access/PermissionDialog'
 
 // 代码编辑器按需加载（CodeMirror 体积较大，不进主包）
@@ -204,6 +204,9 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
 
   // 文件管理一打开就预取代码编辑器 chunk（在用户浏览文件时后台下载，点"编辑"时秒开）
   useEffect(() => { import('./CodeEditor').catch(() => {}) }, [])
+
+  // Esc 关闭预览弹窗（编辑器/新建条自行处理 Esc）
+  useEscape(() => setPreviewFile(null), !!previewFile)
 
   // 跟随 shell 目录变化：终端 cd 后自动把树根定位过去。
   useEffect(() => {

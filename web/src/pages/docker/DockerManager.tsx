@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { dockerApi, dockerWsUrl, type DockerAction, type DockerObjType, type RunReq } from '../../api/docker'
-import { confirm, toast } from '../../ui'
+import { confirm, toast, useEscape } from '../../ui'
 import DockerStream from './DockerStream'
 import ContainerFiles from './ContainerFiles'
 
@@ -57,6 +57,7 @@ function SearchInput({ value, onChange, placeholder }: { value: string; onChange
 // 文本输入弹窗（create / rename 用）
 function PromptModal({ title, label, initial, onOk, onClose }: { title: string; label: string; initial?: string; onOk: (v: string) => void; onClose: () => void }) {
   const [v, setV] = useState(initial || '')
+  useEscape(onClose)
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
@@ -79,6 +80,7 @@ function PromptModal({ title, label, initial, onOk, onClose }: { title: string; 
 // inspect 详情弹窗
 function InspectModal({ assetId, id, title, onClose }: { assetId: string; id: string; title: string; onClose: () => void }) {
   const { data, isError, error } = useQuery({ queryKey: ['docker-inspect', assetId, id], queryFn: () => dockerApi.inspect(assetId, id) })
+  useEscape(onClose)
   const obj = data?.inspect
   const env: string[] = obj?.Config?.Env || []
   const mounts: any[] = obj?.Mounts || []
@@ -533,6 +535,7 @@ function ComposeSection({ data, error, onAction, onViewFile }: { data?: { availa
 
 function ComposeFileModal({ assetId, path, name, onClose }: { assetId: string; path: string; name: string; onClose: () => void }) {
   const { data, isError, error } = useQuery({ queryKey: ['compose-file', assetId, path], queryFn: () => dockerApi.composeFile(assetId, path) })
+  useEscape(onClose)
   return (
     <>
       <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
@@ -551,6 +554,7 @@ function ComposeFileModal({ assetId, path, name, onClose }: { assetId: string; p
 
 function RunModal({ initialImage, onRun, onClose }: { initialImage: string; onRun: (body: RunReq) => Promise<void> | void; onClose: () => void }) {
   const [image, setImage] = useState(initialImage || '')
+  useEscape(onClose)
   const [name, setName] = useState('')
   const [ports, setPorts] = useState('')
   const [envs, setEnvs] = useState('')

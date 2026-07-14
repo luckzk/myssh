@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { useEscape } from '../../ui'
 
 // 复用终端数字前缀帧协议（对齐后端 gateway/bridge.go）。
 const MsgError = 0, MsgData = 1, MsgResize = 2, MsgExit = 4, MsgPing = 9
@@ -21,6 +22,7 @@ export default function DockerStream({ url, interactive, title, icon, onClose }:
   onClose: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  useEscape(onClose, !interactive) // 只读日志/pull 可 Esc 关；交互 exec 不拦 Esc
 
   useEffect(() => {
     const term = new Terminal({

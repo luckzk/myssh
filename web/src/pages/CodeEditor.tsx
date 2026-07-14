@@ -5,7 +5,7 @@ import { EditorState, type Extension } from '@codemirror/state'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { StreamLanguage } from '@codemirror/language'
 import { unifiedMergeView } from '@codemirror/merge'
-import { confirm, toast } from '../ui'
+import { confirm, prompt, toast } from '../ui'
 
 // 语言按需动态加载：基础编辑器包不含各语言语法，用到哪个才拉哪个（首开更快、包更小）。
 // 必须用「字面量」import 路径，Vite 才能正确分包。
@@ -111,7 +111,7 @@ export default function CodeEditor({ path, initial, readOnly, onSave, onSaveAs, 
   doSaveRef.current = doSave
   const doSaveAs = async () => {
     if (!onSaveAs) return
-    const name = window.prompt('另存为（同目录，输入新文件名）', baseOf(path))
+    const name = await prompt('另存为（同目录，输入新文件名）', { initial: baseOf(path), okText: '保存' })
     if (!name || !name.trim()) return
     setSaving(true)
     const ok = await onSaveAs(name.trim(), content, encoding)

@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 
 interface ModalProps {
   open: boolean
@@ -30,6 +30,12 @@ export default function Modal({
   dark = false,
   children,
 }: ModalProps) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
   if (!open) return null
   const border = dark ? '1px solid #34363a' : undefined
   return (
