@@ -1,54 +1,37 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { keymap, EditorView } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { StreamLanguage } from '@codemirror/language'
-import { javascript } from '@codemirror/lang-javascript'
-import { python } from '@codemirror/lang-python'
-import { json } from '@codemirror/lang-json'
-import { html } from '@codemirror/lang-html'
-import { css } from '@codemirror/lang-css'
-import { sql } from '@codemirror/lang-sql'
-import { markdown } from '@codemirror/lang-markdown'
-import { xml } from '@codemirror/lang-xml'
-import { yaml } from '@codemirror/lang-yaml'
-import { go } from '@codemirror/legacy-modes/mode/go'
-import { shell } from '@codemirror/legacy-modes/mode/shell'
-import { dockerFile } from '@codemirror/legacy-modes/mode/dockerfile'
-import { nginx } from '@codemirror/legacy-modes/mode/nginx'
-import { properties } from '@codemirror/legacy-modes/mode/properties'
-import { toml } from '@codemirror/legacy-modes/mode/toml'
-import { c, cpp, java } from '@codemirror/legacy-modes/mode/clike'
-import { ruby } from '@codemirror/legacy-modes/mode/ruby'
-import { lua } from '@codemirror/legacy-modes/mode/lua'
 import { confirm } from '../ui'
 
-// 语言构造器（按需返回 CodeMirror 扩展）。legacy 模式用 StreamLanguage 包裹。
-const sl = (m: any) => () => StreamLanguage.define(m)
-const LANGS: Record<string, () => Extension> = {
-  plain: () => [],
-  javascript: () => javascript({ jsx: true }),
-  typescript: () => javascript({ jsx: true, typescript: true }),
-  python: () => python(),
-  json: () => json(),
-  html: () => html(),
-  css: () => css(),
-  sql: () => sql(),
-  markdown: () => markdown(),
-  xml: () => xml(),
-  yaml: () => yaml(),
-  go: sl(go),
-  shell: sl(shell),
-  dockerfile: sl(dockerFile),
-  nginx: sl(nginx),
-  ini: sl(properties),
-  toml: sl(toml),
-  c: sl(c),
-  cpp: sl(cpp),
-  java: sl(java),
-  ruby: sl(ruby),
-  lua: sl(lua),
+// 语言按需动态加载：基础编辑器包不含各语言语法，用到哪个才拉哪个（首开更快、包更小）。
+// 必须用「字面量」import 路径，Vite 才能正确分包。
+const legacy = async (m: Promise<any>, key: string): Promise<Extension> => StreamLanguage.define((await m)[key])
+const LANG_LOADERS: Record<string, () => Promise<Extension>> = {
+  plain: async () => [],
+  javascript: async () => (await import('@codemirror/lang-javascript')).javascript({ jsx: true }),
+  typescript: async () => (await import('@codemirror/lang-javascript')).javascript({ jsx: true, typescript: true }),
+  python: async () => (await import('@codemirror/lang-python')).python(),
+  json: async () => (await import('@codemirror/lang-json')).json(),
+  html: async () => (await import('@codemirror/lang-html')).html(),
+  css: async () => (await import('@codemirror/lang-css')).css(),
+  sql: async () => (await import('@codemirror/lang-sql')).sql(),
+  markdown: async () => (await import('@codemirror/lang-markdown')).markdown(),
+  xml: async () => (await import('@codemirror/lang-xml')).xml(),
+  yaml: async () => (await import('@codemirror/lang-yaml')).yaml(),
+  go: async () => legacy(import('@codemirror/legacy-modes/mode/go'), 'go'),
+  shell: async () => legacy(import('@codemirror/legacy-modes/mode/shell'), 'shell'),
+  dockerfile: async () => legacy(import('@codemirror/legacy-modes/mode/dockerfile'), 'dockerFile'),
+  nginx: async () => legacy(import('@codemirror/legacy-modes/mode/nginx'), 'nginx'),
+  ini: async () => legacy(import('@codemirror/legacy-modes/mode/properties'), 'properties'),
+  toml: async () => legacy(import('@codemirror/legacy-modes/mode/toml'), 'toml'),
+  c: async () => legacy(import('@codemirror/legacy-modes/mode/clike'), 'c'),
+  cpp: async () => legacy(import('@codemirror/legacy-modes/mode/clike'), 'cpp'),
+  java: async () => legacy(import('@codemirror/legacy-modes/mode/clike'), 'java'),
+  ruby: async () => legacy(import('@codemirror/legacy-modes/mode/ruby'), 'ruby'),
+  lua: async () => legacy(import('@codemirror/legacy-modes/mode/lua'), 'lua'),
 }
 // 下拉里展示的语言（顺序）
 const LANG_LIST = ['plain', 'javascript', 'typescript', 'python', 'go', 'shell', 'json', 'yaml', 'html', 'css', 'sql', 'markdown', 'xml', 'dockerfile', 'nginx', 'ini', 'toml', 'c', 'cpp', 'java', 'ruby', 'lua']
@@ -99,9 +82,17 @@ export default function CodeEditor({ path, initial, onSave, onClose }: {
   const [wrap, setWrap] = useState(false)
   const [font, setFont] = useState(13)
   const [saving, setSaving] = useState(false)
+  const [langExt, setLangExt] = useState<Extension>([])
   const [pos, setPos] = useState({ line: 1, col: 1, sel: 0, lines: initial.split('\n').length })
   const dirty = content !== saved
   const doSaveRef = useRef<() => void>(() => {})
+
+  // 语言语法按需加载（切换语言 / 首次打开时拉取对应语法包）
+  useEffect(() => {
+    let alive = true
+    ;(LANG_LOADERS[lang] || LANG_LOADERS.plain)().then((ext) => { if (alive) setLangExt(ext) }).catch(() => {})
+    return () => { alive = false }
+  }, [lang])
 
   const doSave = async () => {
     if (saving || !dirty) return
@@ -118,7 +109,7 @@ export default function CodeEditor({ path, initial, onSave, onClose }: {
 
   const extensions = useMemo<Extension[]>(() => {
     const ext: Extension[] = [
-      (LANGS[lang] || LANGS.plain)(),
+      langExt,
       keymap.of([{ key: 'Mod-s', preventDefault: true, run: () => { doSaveRef.current(); return true } }]),
       EditorView.theme({
         '&': { fontSize: `${font}px` },
@@ -128,7 +119,7 @@ export default function CodeEditor({ path, initial, onSave, onClose }: {
     ]
     if (wrap) ext.push(EditorView.lineWrapping)
     return ext
-  }, [lang, wrap, font])
+  }, [langExt, wrap, font])
 
   const Btn = ({ icon, title, onClick, active }: { icon: string; title: string; onClick: () => void; active?: boolean }) => (
     <button className={`term-tool${active ? ' term-tool-active' : ''}`} title={title} onClick={onClick} style={{ width: 30, height: 30, fontSize: 16 }}>

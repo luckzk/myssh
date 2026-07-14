@@ -180,6 +180,9 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
 
   useEffect(() => saveBookmarks(bookmarks), [bookmarks])
 
+  // 文件管理一打开就预取代码编辑器 chunk（在用户浏览文件时后台下载，点"编辑"时秒开）
+  useEffect(() => { import('./CodeEditor').catch(() => {}) }, [])
+
   // 跟随 shell 目录变化：终端 cd 后自动把树根定位过去。
   useEffect(() => {
     if (follow && cwd && cwd !== root) {
