@@ -40,6 +40,21 @@ function saveBookmarks(items: string[]) {
 }
 
 // 单个文件/目录节点：目录可懒加载展开（每个目录独立 useQuery 缓存）。
+// 大目录只先渲染前 N 项，避免上千 DOM 卡顿；点"展开更多"再加载。
+function CappedList({ items, render, initial = 300, step = 500 }: { items: any[]; render: (item: any) => React.ReactNode; initial?: number; step?: number }) {
+  const [limit, setLimit] = useState(initial)
+  return (
+    <>
+      {items.slice(0, limit).map(render)}
+      {items.length > limit && (
+        <div className="text-info" style={{ fontSize: 12, cursor: 'pointer', padding: '3px 12px' }} onClick={() => setLimit((l) => l + step)}>
+          <i className="bx bx-chevron-down me-1" />还有 {items.length - limit} 项，展开更多…
+        </div>
+      )}
+    </>
+  )
+}
+
 function FsNode({
   sid,
   file,
@@ -50,6 +65,8 @@ function FsNode({
   onCtx,
   onPreview,
   onEdit,
+  selected,
+  onToggleSelect,
 }: {
   sid: string
   file: FileInfo
@@ -60,6 +77,8 @@ function FsNode({
   onCtx: (file: FileInfo, e: React.MouseEvent) => void
   onPreview: (file: FileInfo) => void
   onEdit: (file: FileInfo) => void
+  selected: Set<string>
+  onToggleSelect: (path: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const isDir = file.isDir
@@ -76,14 +95,15 @@ function FsNode({
     }
   }
 
-  const selected = isDir && selectedDir === file.path
+  const isDirSelected = isDir && selectedDir === file.path
+  const checked = !isDir && selected.has(file.path)
   return (
     <div>
       <div
         className="fs-node d-flex align-items-center"
         style={{
           paddingLeft: 8 + depth * 14,
-          background: selected ? '#34363a' : undefined,
+          background: checked ? '#2a2140' : isDirSelected ? '#34363a' : undefined,
           cursor: isDir ? 'pointer' : 'default',
         }}
         onClick={onClick}
@@ -96,7 +116,7 @@ function FsNode({
         {isDir ? (
           <i className={`bx ${open ? 'bx-chevron-down' : 'bx-chevron-right'}`} style={{ width: 16, color: '#9ca3af' }} />
         ) : (
-          <span style={{ width: 16, display: 'inline-block' }} />
+          <input type="checkbox" className="fs-check" checked={checked} onClick={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); onToggleSelect(file.path) }} style={{ width: 16, cursor: 'pointer' }} />
         )}
         <i className={`bx ${isDir ? 'bxs-folder' : 'bx-file-blank'} me-1`} style={{ color: isDir ? '#e0a23b' : '#7f8c9b' }} />
         <span className="flex-grow-1 text-truncate" style={{ fontSize: 13 }}>
@@ -127,9 +147,9 @@ function FsNode({
               <span className="spinner-border spinner-border-sm text-secondary my-1" />
             </div>
           ) : (
-            (children ?? []).map((c) => (
-              <FsNode key={c.path} sid={sid} file={c} depth={depth + 1} hidden={hidden} selectedDir={selectedDir} onSelectDir={onSelectDir} onCtx={onCtx} onPreview={onPreview} onEdit={onEdit} />
-            ))
+            <CappedList items={children ?? []} render={(c: FileInfo) => (
+              <FsNode key={c.path} sid={sid} file={c} depth={depth + 1} hidden={hidden} selectedDir={selectedDir} onSelectDir={onSelectDir} onCtx={onCtx} onPreview={onPreview} onEdit={onEdit} selected={selected} onToggleSelect={onToggleSelect} />
+            )} />
           )}
         </div>
       )}
@@ -174,6 +194,8 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [bookmarks, setBookmarks] = useState<string[]>(() => loadBookmarks())
   const [queue, setQueue] = useState<{ id: string; name: string; status: 'queued' | 'uploading' | 'done' | 'error'; error?: string }[]>([])
+  const [dragOver, setDragOver] = useState(false) // 外部文件拖入上传
+  const [selected, setSelected] = useState<Set<string>>(new Set()) // 批量选中的文件路径
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const uploadTargetRef = useRef<string>('.') // 触发上传时锁定目标目录
@@ -209,6 +231,19 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
     setTreeKey((k) => k + 1)
   }
   const collapseAll = () => setTreeKey((k) => k + 1)
+
+  // ---- 批量选择 ----
+  const toggleSelect = (path: string) => setSelected((s) => { const n = new Set(s); n.has(path) ? n.delete(path) : n.add(path); return n })
+  const clearSelected = () => setSelected(new Set())
+  const batchDelete = async () => {
+    const paths = [...selected]
+    if (!paths.length || !(await confirm(`删除选中的 ${paths.length} 个文件？`, { danger: true, okText: '删除' }))) return
+    let ok = 0
+    for (const p of paths) { try { await fsApi.rm(sessionId, p); ok += 1 } catch { /* 跳过失败项 */ } }
+    toast.success(`已删除 ${ok}/${paths.length}`)
+    clearSelected(); refresh()
+  }
+  const batchDownload = () => { for (const p of selected) window.open(fsApi.downloadUrl(sessionId, p), '_blank') }
 
   const dirOf = (f: FileInfo) => (f.isDir ? f.path : parentOf(f.path))
 
@@ -361,7 +396,23 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
   const displayRoot = useMemo(() => (root === '.' ? '~' : root), [root])
 
   return (
-    <div className="d-flex flex-column" style={{ width: '100%', height: '100%', background: '#1E1F22', borderLeft: '1px solid #34363a', color: '#d4d4d4' }}>
+    <div
+      className="d-flex flex-column"
+      style={{ position: 'relative', width: '100%', height: '100%', background: '#1E1F22', borderLeft: '1px solid #34363a', color: '#d4d4d4' }}
+      onDragOver={(e) => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); setDragOver(true) } }}
+      onDragLeave={(e) => { if (e.target === e.currentTarget) setDragOver(false) }}
+      onDrop={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes('Files')) return
+        e.preventDefault(); setDragOver(false)
+        const files = Array.from(e.dataTransfer.files)
+        if (files.length) runUpload(files, root, false)
+      }}
+    >
+      {dragOver && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1050, background: 'rgba(132,90,223,.15)', border: '2px dashed #845adf', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <div style={{ color: '#c4b5fd', fontSize: 14 }}><i className="bx bx-upload me-2" />松开上传到 {displayRoot}</div>
+        </div>
+      )}
       <input ref={fileInputRef} type="file" className="d-none" multiple onChange={onFilePicked} />
       {/* @ts-expect-error 非标准目录选择属性 */}
       <input ref={folderInputRef} type="file" className="d-none" multiple webkitdirectory="" directory="" onChange={onFolderPicked} />
@@ -490,6 +541,16 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
         </div>
       )}
 
+      {/* 批量操作条 */}
+      {selected.size > 0 && (
+        <div className="d-flex align-items-center gap-2 mx-2 mb-1 p-2 rounded" style={{ background: '#2B2D30', flexShrink: 0, fontSize: 12 }}>
+          <span className="text-light">已选 {selected.size}</span>
+          <button className="btn btn-sm btn-outline-info py-0" onClick={batchDownload}><i className="bx bx-download" /> 下载</button>
+          <button className="btn btn-sm btn-outline-danger py-0" onClick={batchDelete}><i className="bx bx-trash" /> 删除</button>
+          <button className="btn btn-sm btn-link text-secondary ms-auto py-0" onClick={clearSelected}>取消选择</button>
+        </div>
+      )}
+
       {/* 文件树 */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '4px 4px 12px' }}>
         {isLoading ? (
@@ -498,9 +559,9 @@ export default function FileManager({ sessionId, cwd, dirFollow, onSetDirFollow,
           <Empty text="空目录" />
         ) : (
           <div key={treeKey}>
-            {roots.map((f) => (
-              <FsNode key={f.path} sid={sessionId} file={f} depth={0} hidden={hidden} selectedDir={selectedDir} onSelectDir={setSelectedDir} onCtx={(file, e) => { setSubmenu(null); setMenu({ x: e.clientX, y: e.clientY, file }) }} onPreview={setPreviewFile} onEdit={openEditor} />
-            ))}
+            <CappedList items={roots} render={(f: FileInfo) => (
+              <FsNode key={f.path} sid={sessionId} file={f} depth={0} hidden={hidden} selectedDir={selectedDir} onSelectDir={setSelectedDir} onCtx={(file, e) => { setSubmenu(null); setMenu({ x: e.clientX, y: e.clientY, file }) }} onPreview={setPreviewFile} onEdit={openEditor} selected={selected} onToggleSelect={toggleSelect} />
+            )} />
           </div>
         )}
       </div>

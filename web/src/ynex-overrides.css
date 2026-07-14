@@ -87,6 +87,15 @@
 .fs-node:hover .fs-actions {
   opacity: 1;
 }
+/* 批量选择复选框：默认隐藏，悬停行或已勾选时显现 */
+.fs-node .fs-check {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.fs-node:hover .fs-check,
+.fs-check:checked {
+  opacity: 1;
+}
 .fs-node a {
   color: #9ca3af;
   text-decoration: none;
