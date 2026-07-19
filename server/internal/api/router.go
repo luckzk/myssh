@@ -75,6 +75,7 @@ func NewRouter(s *store.Store, cfg config.Config) *echo.Echo {
 	adminG := apiG.Group("/admin", web.AuthToken(s), web.DemoGuard(cfg.DemoMode))
 	accessH.RegisterAdmin(adminG)
 	resource.NewCredentialHandler(s, cfg, cipher).Register(adminG.Group("/credentials"))
+	resource.NewBackupHandler(s, cfg, cipher).Register(adminG.Group("/backup"))
 	assetH := resource.NewAssetHandler(s, cipher)
 	assetH.SecurityToken = cfg.SecurityToken
 	assetH.SSHOptions = sshOptions

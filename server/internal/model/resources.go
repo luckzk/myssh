@@ -144,3 +144,15 @@ type Setting struct {
 }
 
 func (Setting) TableName() string { return "settings" }
+
+// Backup 一次备份记录（历史）。
+type Backup struct {
+	ID        string `gorm:"primaryKey;size:36" json:"id"`
+	ObjectKey string `json:"objectKey"` // S3 对象键
+	Size      int64  `json:"size"`      // 上传字节数
+	Status    string `json:"status"`    // success | error
+	Message   string `json:"message"`   // 错误信息（失败时）
+	CreatedAt int64  `json:"createdAt"`
+}
+
+func (Backup) TableName() string { return "backups" }

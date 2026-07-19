@@ -23,6 +23,7 @@ const AgentGatewayPage = lazy(() => import('./pages/AgentGatewayPage'))
 const UserPage = lazy(() => import('./pages/UserPage'))
 const AuthorizationPage = lazy(() => import('./pages/AuthorizationPage'))
 const CommandFilterPage = lazy(() => import('./pages/CommandFilterPage'))
+const BackupPage = lazy(() => import('./pages/BackupPage'))
 const SnippetPage = lazy(() => import('./pages/resource-modules').then((m) => ({ default: m.SnippetPage })))
 const StoragePage = lazy(() => import('./pages/resource-modules').then((m) => ({ default: m.StoragePage })))
 const DatabaseAssetPage = lazy(() => import('./pages/resource-modules').then((m) => ({ default: m.DatabaseAssetPage })))
@@ -47,6 +48,7 @@ const IMPLEMENTED: Record<string, React.ComponentType> = {
   user: UserPage,
   'authorised-asset': AuthorizationPage,
   'command-filter': CommandFilterPage,
+  backup: BackupPage,
   setting: SettingPage,
 }
 

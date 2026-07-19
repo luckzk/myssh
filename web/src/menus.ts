@@ -39,6 +39,7 @@ export const MENU_META: MenuMeta[] = [
   { key: 'login-log', label: '登录日志', group: 'log-audit' },
   { key: 'operation-log', label: '操作日志', group: 'log-audit' },
   { key: 'database-sql-log', label: '数据库 SQL 日志', group: 'log-audit' },
+  { key: 'backup', label: '备份', group: 'sysops' },
   { key: 'scheduled-task', label: '计划任务', group: 'sysops' },
   { key: 'tools', label: '工具', group: 'sysops' },
   { key: 'monitoring', label: '监控', group: 'sysops' },

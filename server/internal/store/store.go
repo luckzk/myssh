@@ -61,7 +61,7 @@ func (s *Store) migrate() error {
 		&model.Snippet{}, &model.Storage{}, &model.DatabaseAsset{},
 		&model.Certificate{}, &model.GatewayGroup{}, &model.SshGateway{},
 		&model.AgentGateway{}, &model.AgentGatewayToken{},
-		&model.Setting{},
+		&model.Setting{}, &model.Backup{},
 	)
 }
 
