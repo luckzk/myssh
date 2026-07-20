@@ -147,12 +147,55 @@ func (Setting) TableName() string { return "settings" }
 
 // Backup 一次备份记录（历史）。
 type Backup struct {
-	ID        string `gorm:"primaryKey;size:36" json:"id"`
-	ObjectKey string `json:"objectKey"` // S3 对象键
-	Size      int64  `json:"size"`      // 上传字节数
-	Status    string `json:"status"`    // success | error
-	Message   string `json:"message"`   // 错误信息（失败时）
-	CreatedAt int64  `json:"createdAt"`
+	ID            string `gorm:"primaryKey;size:36" json:"id"`
+	JobID         string `json:"jobId"`         // 关联任务
+	DestinationID string `json:"destinationId"` // 关联目标
+	ObjectKey     string `json:"objectKey"`     // 对象键（本地为文件名）
+	Size          int64  `json:"size"`          // 字节数
+	Status        string `json:"status"`        // success | error
+	Message       string `json:"message"`       // 错误信息（失败时）
+	CreatedAt     int64  `json:"createdAt"`
 }
 
 func (Backup) TableName() string { return "backups" }
+
+// BackupDestination 备份目标（存放备份的地方，作为资源）：本地目录或 S3 兼容存储。
+type BackupDestination struct {
+	BaseResource
+	Name string `json:"name"`
+	Type string `json:"type"` // local | s3
+	// S3 兼容字段（Type=s3）
+	Endpoint  string `json:"endpoint"`
+	Region    string `json:"region"`
+	Bucket    string `json:"bucket"`
+	Prefix    string `json:"prefix"`
+	AccessKey string `json:"accessKey"`
+	SecretKey string `json:"secretKey"` // 加密
+	UseSSL    bool   `json:"useSSL"`
+	// 本地字段（Type=local）
+	LocalPath string `json:"localPath"`
+	// 共享
+	Passphrase string `json:"passphrase"` // 加密（AES-256-GCM 口令）
+	IsDefault  bool   `json:"isDefault"`
+	CreatedBy  string `json:"createdBy"`
+	UpdatedAt  int64  `json:"updatedAt"`
+}
+
+func (BackupDestination) TableName() string { return "backup_destinations" }
+
+// BackupJob 备份任务：备份什么（Contents）+ 何时（Cron）+ 存到哪（DestinationID）。
+type BackupJob struct {
+	BaseResource
+	Name          string `json:"name"`
+	DestinationID string `json:"destinationId"`
+	Contents      string `json:"contents"` // CSV：db,recordings
+	Enabled       bool   `json:"enabled"`
+	Cron          string `json:"cron"`
+	LastRunAt     int64  `json:"lastRunAt"`
+	LastStatus    string `json:"lastStatus"` // success | error
+	LastMessage   string `json:"lastMessage"`
+	CreatedBy     string `json:"createdBy"`
+	UpdatedAt     int64  `json:"updatedAt"`
+}
+
+func (BackupJob) TableName() string { return "backup_jobs" }

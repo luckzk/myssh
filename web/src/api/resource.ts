@@ -41,6 +41,7 @@ export interface Asset {
   groupFullName?: string
   tags?: string[]
   os?: string
+  distro?: string
   // 多层跳板 + 连接/初始化/代理/高级
   gatewayChain?: string[]
   timeout?: number

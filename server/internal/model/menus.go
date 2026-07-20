@@ -7,14 +7,14 @@ var MenuKeys = []string{
 	"dashboard",
 	// resource 域
 	"resource", "asset", "database-asset", "db-work-order", "credential",
-	"snippet", "storage", "website", "certificate",
+	"snippet", "storage", "backup-destination", "website", "certificate",
 	"gateway", "ssh-gateway", "agent-gateway", "gateway-group",
 	// log-audit 域
 	"log-audit", "online-session", "offline-session", "exec-command-log",
 	"filesystem-log", "access-log", "access-log-stats", "login-log",
 	"operation-log", "database-sql-log",
 	// sysops 域
-	"sysops", "scheduled-task", "tools", "monitoring",
+	"sysops", "backup", "scheduled-task", "tools", "monitoring",
 	// identity 域
 	"identity", "user", "user-group", "department", "role",
 	"login-policy", "login-locked", "oidc-client",

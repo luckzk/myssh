@@ -19,6 +19,8 @@ export default function AssetPage() {
   const [editing, setEditing] = useState<Asset | null>(null)
   const [open, setOpen] = useState(false)
   const [guacdOpen, setGuacdOpen] = useState(false)
+  const [view, setView] = useState<'list' | 'grid'>(() => (localStorage.getItem('nt-asset-view') as any) || 'list')
+  const setViewMode = (v: 'list' | 'grid') => { setView(v); localStorage.setItem('nt-asset-view', v) }
 
   const { data, isLoading } = useQuery({
     queryKey: ['assets', page, groupId, keyword, focusAssetId],
@@ -93,6 +95,28 @@ export default function AssetPage() {
     }
   }
 
+  // 连接：复用固定窗口名的工作台；空 URL 只聚焦、不导航（避免整页重载断开已有终端）。
+  const connectAsset = (rec: Asset) => {
+    const w = window.open('', 'nt-workspace')
+    let fresh = !w
+    try {
+      fresh = fresh || !w!.location.href || w!.location.href === 'about:blank'
+    } catch {
+      fresh = false // 跨源无法读取 → 视为已存在的工作台
+    }
+    if (fresh && w) {
+      const q = `open=${rec.id}&name=${encodeURIComponent(rec.name)}&protocol=${rec.protocol}`
+      w.location.href = `/access?${q}`
+    } else {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('nt-access')
+        bc.postMessage({ assetId: rec.id, name: rec.name, protocol: rec.protocol })
+        bc.close()
+      }
+      w?.focus()
+    }
+  }
+
   const columns: Column<Asset>[] = [
     { title: '名称', key: '__name', render: (_, r) => <span className="d-inline-flex align-items-center gap-2"><AssetIcon asset={r} size={16} />{r.name}</span> },
     { title: '协议', dataIndex: 'protocol', render: (v) => <Badge>{v}</Badge> },
@@ -121,32 +145,7 @@ export default function AssetPage() {
       key: '__act',
       render: (_, rec) => (
         <div className="d-flex gap-2">
-          <button
-            className="btn btn-sm btn-light"
-            onClick={() => {
-              // 复用固定窗口名的工作台：空 URL 只聚焦、不导航（避免整页重载断开已有终端）。
-              const w = window.open('', 'nt-workspace')
-              let fresh = !w
-              try {
-                fresh = fresh || !w!.location.href || w!.location.href === 'about:blank'
-              } catch {
-                fresh = false // 跨源无法读取 → 视为已存在的工作台
-              }
-              if (fresh && w) {
-                // 首次打开：冷启动加载，资源自动成为第一个工作组
-                const q = `open=${rec.id}&name=${encodeURIComponent(rec.name)}&protocol=${rec.protocol}`
-                w.location.href = `/access?${q}`
-              } else {
-                // 工作台已打开：广播「新建工作组」，不重载
-                if (typeof BroadcastChannel !== 'undefined') {
-                  const bc = new BroadcastChannel('nt-access')
-                  bc.postMessage({ assetId: rec.id, name: rec.name, protocol: rec.protocol })
-                  bc.close()
-                }
-                w?.focus()
-              }
-            }}
-          >
+          <button className="btn btn-sm btn-light" onClick={() => connectAsset(rec)}>
             <i className="bx bx-link-external" /> 连接
           </button>
           {isAdmin && (
@@ -190,22 +189,28 @@ export default function AssetPage() {
         </div>
         <div className="col-xl-9 col-lg-8">
           <Card>
-            {/* 资源搜索：跨 名称/协议/地址/账号/分组/标签，范围=左侧所选分组 */}
-            <div className="input-group mb-3" style={{ maxWidth: 460 }}>
-              <span className="input-group-text bg-transparent">
-                <i className="bx bx-search" />
-              </span>
-              <input
-                className="form-control"
-                placeholder="搜索 名称 / 协议 / 地址 / 账号 / 分组 / 标签"
-                value={keyword}
-                onChange={(e) => onSearch(e.target.value)}
-              />
-              {keyword && (
-                <button className="btn btn-light" onClick={() => onSearch('')}>
-                  <i className="bx bx-x" />
-                </button>
-              )}
+            {/* 资源搜索：跨 名称/协议/地址/账号/分组/标签，范围=左侧所选分组；右侧列表/网格切换 */}
+            <div className="d-flex align-items-center justify-content-between mb-3 gap-2">
+              <div className="input-group" style={{ maxWidth: 460 }}>
+                <span className="input-group-text bg-transparent">
+                  <i className="bx bx-search" />
+                </span>
+                <input
+                  className="form-control"
+                  placeholder="搜索 名称 / 协议 / 地址 / 账号 / 分组 / 标签"
+                  value={keyword}
+                  onChange={(e) => onSearch(e.target.value)}
+                />
+                {keyword && (
+                  <button className="btn btn-light" onClick={() => onSearch('')}>
+                    <i className="bx bx-x" />
+                  </button>
+                )}
+              </div>
+              <div className="btn-group flex-shrink-0" role="group" aria-label="视图切换">
+                <button className={`btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-light'}`} title="列表视图" onClick={() => setViewMode('list')}><i className="bx bx-list-ul" /></button>
+                <button className={`btn btn-sm ${view === 'grid' ? 'btn-primary' : 'btn-light'}`} title="网格视图" onClick={() => setViewMode('grid')}><i className="bx bx-grid-alt" /></button>
+              </div>
             </div>
             {focusAssetId && (
               <div className="mb-2 fs-13">
@@ -213,18 +218,32 @@ export default function AssetPage() {
                 <a className="ms-2" href="#" onClick={(e) => { e.preventDefault(); setFocusAssetId('') }}>清除</a>
               </div>
             )}
-            <DataTable
-              columns={columns}
-              dataSource={data?.items}
-              loading={isLoading}
-              rowKey="id"
-              pagination={{
-                current: page.pageIndex,
-                pageSize: page.pageSize,
-                total: data?.total,
-                onChange: (pageIndex, pageSize) => setPage({ pageIndex, pageSize }),
-              }}
-            />
+            {view === 'list' ? (
+              <DataTable
+                columns={columns}
+                dataSource={data?.items}
+                loading={isLoading}
+                rowKey="id"
+                pagination={{
+                  current: page.pageIndex,
+                  pageSize: page.pageSize,
+                  total: data?.total,
+                  onChange: (pageIndex, pageSize) => setPage({ pageIndex, pageSize }),
+                }}
+              />
+            ) : (
+              <AssetGrid
+                items={data?.items ?? []}
+                loading={isLoading}
+                isAdmin={isAdmin}
+                onConnect={connectAsset}
+                onEdit={openForm}
+                onDelete={onDelete}
+                page={page}
+                total={data?.total ?? 0}
+                onPage={(pageIndex) => setPage((p) => ({ ...p, pageIndex }))}
+              />
+            )}
           </Card>
         </div>
       </div>
@@ -242,6 +261,53 @@ export default function AssetPage() {
           qc.invalidateQueries({ queryKey: ['assets-all'] })
         }}
       />
+    </>
+  )
+}
+
+// AssetGrid 网格视图：带 OS/发行版大图标的资产卡片 + 简易分页。
+function AssetGrid({ items, loading, isAdmin, onConnect, onEdit, onDelete, page, total, onPage }: {
+  items: Asset[]; loading?: boolean; isAdmin?: boolean
+  onConnect: (a: Asset) => void; onEdit: (a: Asset) => void; onDelete: (id: string) => void
+  page: { pageIndex: number; pageSize: number }; total: number; onPage: (pageIndex: number) => void
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / page.pageSize))
+  if (loading) return <div className="text-center text-muted py-5">加载中…</div>
+  if (items.length === 0) return <div className="text-center text-muted py-5">暂无资产</div>
+  return (
+    <>
+      <div className="row g-3">
+        {items.map((a) => (
+          <div className="col-xxl-3 col-lg-4 col-md-6" key={a.id}>
+            <div className="border rounded p-3 h-100 d-flex flex-column asset-grid-card">
+              <div className="d-flex align-items-center gap-2 mb-2">
+                <AssetIcon asset={a} size={26} />
+                <div className="text-truncate">
+                  <div className="fw-semibold text-truncate" title={a.name}>{a.name}</div>
+                  <div className="text-muted" style={{ fontSize: 12 }}>{a.ip}:{a.port}</div>
+                </div>
+              </div>
+              <div className="d-flex flex-wrap gap-1 mb-2" style={{ fontSize: 12 }}>
+                <Badge>{a.protocol}</Badge>
+                {a.username && <Badge color="secondary">{a.username}</Badge>}
+                {a.groupFullName && <Badge color="info">{a.groupFullName}</Badge>}
+              </div>
+              <div className="d-flex gap-1 mt-auto">
+                <button className="btn btn-sm btn-light flex-fill" onClick={() => onConnect(a)}><i className="bx bx-link-external" /> 连接</button>
+                {isAdmin && <button className="btn btn-sm btn-light" title="编辑" onClick={() => onEdit(a)}><i className="bx bx-edit-alt" /></button>}
+                {isAdmin && <button className="btn btn-sm btn-danger-light" title="删除" onClick={() => onDelete(a.id)}><i className="bx bx-trash" /></button>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {pageCount > 1 && (
+        <div className="d-flex justify-content-end align-items-center gap-2 mt-3">
+          <button className="btn btn-sm btn-light" disabled={page.pageIndex <= 1} onClick={() => onPage(page.pageIndex - 1)}><i className="bx bx-chevron-left" /></button>
+          <span className="text-muted" style={{ fontSize: 13 }}>{page.pageIndex} / {pageCount}</span>
+          <button className="btn btn-sm btn-light" disabled={page.pageIndex >= pageCount} onClick={() => onPage(page.pageIndex + 1)}><i className="bx bx-chevron-right" /></button>
+        </div>
+      )}
     </>
   )
 }

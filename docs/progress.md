@@ -505,3 +505,32 @@
 - **同步终端工作区**：`AccessWorkspace` 左侧 `AssetTree` 的分组文件夹由写死 `bxs-folder/#e0a23b` 改用 `<GroupIcon>`；与资产页 `GroupTree` 共用同一 `asset-groups` 查询，故改一处两处一致。
 
 **验证**：Playwright 上传 32×32 PNG→保存→资产页 GroupTree 显示 `<img>`、终端工作区 AssetTree 同步显示同一 `<img>`（截图确认工作区「文本协议」变自定义图标）。`tsc`+`vite build` 通过；测试改动已还原。
+
+### T.1 · 加密备份到 S3 + 从备份恢复 + 定时备份
+把结构化数据（SQLite：资产/数据库资产/命令/凭证[加密]/证书/图标[base64]/用户/会话/日志/设置…）与会话录像（`.cast`）打包加密上传到 S3 兼容存储（S3/R2/B2/MinIO），并支持恢复与定时。
+- **加密格式**（`server/internal/backup/backup.go`）：`magic "NTBK1\n" | salt(16) | 帧[ctLen u32|nonce(12)|GCM 密文]`；明文 = `gzip(tar(nt.db + recordings/*))`，256KB 分块流式 AES-256-GCM（scrypt N=2^15 派生 key，口令独立于 `NT_ENC_KEY`）。`Upload` 经 `io.Pipe` 流式 `PutObject(size=-1)` 不整包入内存；`List`（列 `.enc` 对象）/`Extract`（下载→解密→解 tar 到 `dbDest`+`recDest`）为逆向。
+- **DB 快照**：`VACUUM INTO` 临时文件后再打包，避免热库一致性问题。
+- **Handler**（`server/internal/api/resource/backup.go`）：`GET/PUT /admin/backup/config`（secretKey/passphrase 经 `cipher` 加密存 settings，留空=不改，`getConfig` 只回 `*Set` 布尔不回明文）、`POST /run`、`GET /history`（`model.Backup` 记录）、`GET /objects`（列桶内可恢复对象）、`POST /restore`。
+- **恢复策略（暂存 + 重启生效）**：`restore` 把对象解密解包到 `<db>.restore` / `<recordings>.restore`；`store.Open` 启动时 `applyStagedRestore` 检测暂存文件，把现有库改名 `.pre-restore-<ts>` 保底、清 `-wal/-shm`、再把 `.restore` 换正，录像目录同理。避免运行中替换打开的 sqlite 文件。
+- **定时**（robfig/cron/v3）：配置加 `enabled`/`cron`（5 段），`saveConfig` 用 `cron.ParseStandard` 校验非法表达式（400），`reloadSchedule` 保存即时重建任务；`NewBackupHandler` 启动即加载。
+- **前端**（`web/src/pages/BackupPage.tsx` + `api/backup.ts`）：配置表单 + 立即备份 + **定时卡片**（开关 + cron 输入 + 4 个常用预设按钮）+ **恢复卡片**（列出对象 → 每行「恢复」按钮，二次确认 danger；未存口令时 `prompt` 现填）+ 备份历史表。菜单 `backup`（sysops 组）。
+- **验证**：MinIO（`nt-minio`:9000，桶 `nt-backups`）端到端跑通——`objects` 列出 244KB 备份、`restore` 暂存出 868KB 合法 SQLite（`file` 确认）+ 录像 `.cast`；重启后日志 `restore: db/recordings restored from backup`、`.restore` 被消费、旧库存为 `.pre-restore-*`、恢复后 `zkiss` 登录正常；定时 `enabled+cron` 保存后日志 `backup schedule enabled`，非法 cron 被拒。`go build`+`tsc`+`vite build` 全过。
+
+### T.2 · 备份重构：目标资源化 + 备份任务（含本地目标）
+把 T.1 的「单一 S3 配置」升级为**任务式**：先建「备份目标」（资源）→ 再建「备份任务」（备份什么/何时/存到哪）。新增**本地目录**目标。
+- **目标即资源**（`资源管理 → 备份目标`）：`model.BackupDestination`（表 `backup_destinations`，`Type=local|s3` + S3 字段/本地 `LocalPath` + 加密 `SecretKey/Passphrase` + `IsDefault`）。专用 CRUD handler（非通用 Crud，`update` 时留空/`******` 保留旧密文），带 `POST /:id/test`（S3 建桶探测 / 本地可写探测）、`GET /:id/objects`。
+- **任务**（`运维 → 备份`）：`model.BackupJob`（表 `backup_jobs`，`DestinationID` + `Contents` CSV(`db,recordings`) + `Enabled/Cron` + `LastRun*`）。CRUD + `POST /:id/run`；`Contents` 至少一项、`Cron` 用 `cron.ParseStandard` 校验、`DestinationID` 存在性校验；任何增删改后 `reloadSchedule` 重建 cron。
+- **存储抽象**（`backup/backup.go`）：`Backend` 接口（`Put/List/Get/Test`）解耦「打包加密」与「存到哪」；`s3Backend`（minio）+ `localBackend`（写目录，按 basename 存取）；`NewBackend(Destination)` 按类型造；`Pack`（按 `includeDB/includeRec` 选内容打包）→ `RunBackup`（io.Pipe 流式）→ `Restore`（复用 `decReader`）。本地与 S3 一律 AES-256-GCM，口令存目标上。
+- **历史/恢复**：`Backup` 记录加 `JobID/DestinationID`；`POST /backup/restore {destinationId,objectKey,passphrase?}`（口令默认取目标、可覆盖）→ 暂存 `<db>.restore`/`<rec>.restore` → 复用 `store.Open applyStagedRestore` 重启交换。
+- **一次性迁移**：启动时若旧 `settings["backup.config"]` 存在且无任何目标 → 据其建一个默认 S3 目标（沿用已存 MinIO 配置，密文直接落库）。
+- **前端**：`BackupDestinationPage`（资源列表 + 按 `Type` 切换字段的新建/编辑弹窗 + 测试）；`BackupPage` 重写为任务页（任务表 + **①名称→②内容→③时间→④目标** 向导弹窗 + 立即备份 + 历史 + 「选目标→列出→恢复」）；`api/backup.ts`(任务/历史/恢复) + `api/backupDestination.ts`(目标 CRUD/test/objects)；菜单加 `backup-destination`（resource 组）。
+- **验证**（`:8088` v17 + dev `:5173`）：迁移日志出现默认目标；建**本地目标**(`/tmp/nt-local-backups`)→`test` 通过→建任务(db+recordings)→立即备份生成 247KB `.enc`→`objects` 列出→`restore` 暂存出合法 SQLite(`file` 校验)+录像；重启 `backup schedule loaded jobs=1`、无误迁移/误恢复；两页 Playwright 截图正常（资源页双目标、任务页向导弹窗①②③④、历史成功记录）。`go build`+`tsc`+`vite build` 全过。
+
+### T.3 · 借鉴 Netcatty：发行版自动识别 + 资产网格视图
+对比 Netcatty(Electron 桌面 SSH 客户端)后,多数功能 myssh 已有(分屏/SFTP/关键字高亮/广播/多协议/主题)。挑了两项低成本高收益的补上。
+- **发行版自动探测**（原 `detectOS` 只探系统家族 linux/macos/windows）：连接成功后新增读 `/etc/os-release` 的 `ID`（`sed -n 's/^ID=//p'`，busybox/alpine 通用），写入 `asset.distro`；仅值变化时落库，失败静默。`model.Asset` 加 `Distro` 字段（AutoMigrate 自动加列）；asset `update` 不覆盖 `os/distro`，手动编辑不清掉已探测值。
+- **发行版图标**（`AssetIcon.tsx`）：解析优先级 logo > distro > os家族 > 协议。boxicons 无各发行版专属 logo，故统一用企鹅 `bxl-tux` **按品牌色着色** + 悬停显示发行版名（Ubuntu 橙/Debian 红/Rocky 绿/Alpine 深蓝/Fedora 蓝…，亚马逊用 `bxl-amazon`）。`distro` 透传到工作台 tab 图标。
+- **资产网格视图**（`AssetPage.tsx`）：搜索栏右侧加 列表/网格 切换（`localStorage` 记忆）；网格为带大图标的资产卡片（图标+名称+`ip:port`+协议/账号/分组徽章+连接/编辑/删除）+ 简易分页。连接逻辑抽成 `connectAsset` 供表格/网格复用。
+- **验证**（`:8088` v18 + dev `:5173`）：本机 `/etc/os-release ID=rocky`；DB 中 `dev`→`os=linux,distro=rocky`、`frankfurt-arm-1`→`distro=debian`（新列由 detectOS 真实连接写入）；Playwright 读计算样式确认图标着色——Rocky `rgb(16,185,129)`(绿)、Debian `rgb(168,29,51)`(红)、无 distro 者中性色；网格视图卡片+分页+切换截图正常。`go build`+`tsc`+`vite build` 全过。
+
+**T.3 补充 · 真实发行版 logo**：把「企鹅按品牌色着色」升级为**真实官方 logo**——引入 `font-logos`（MIT/OFL 的发行版 logo 字体，100+ 发行版），vendored 到 `public/fonts/font-logos/` 并在 `index.html` `<link>`（同 boxicons 方式，dev/prod 均验证 200）。`AssetIcon` 的 `DISTRO` 映射改为 `fl-*` 类（ubuntu/debian/centos/redhat/fedora/alpine/archlinux/rocky-linux/almalinux/opensuse/gentoo/kali/mint/nixos/... 均按品牌色着色 + 悬停名称；amazon 无 fl 图标退回 `bxl-amazon`）。**自定义图标保护**：`resolveIcon` 仍是 `logo(自定义) > distro > os > 协议`，用户上传过图标(logo)则永不被 os/distro 覆盖——只有「默认图标」才随探测变化。Playwright 验证 `::before` 字体族=`font-logos`（真字形已加载非回退方块）：dev=Rocky(绿)、frankfurt-arm-1=Debian(红)。

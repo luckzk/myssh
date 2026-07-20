@@ -24,6 +24,7 @@ export const MENU_META: MenuMeta[] = [
   { key: 'credential', label: '凭证', group: 'resource' },
   { key: 'snippet', label: '命令片段', group: 'resource' },
   { key: 'storage', label: '存储', group: 'resource' },
+  { key: 'backup-destination', label: '备份目标', group: 'resource' },
   { key: 'website', label: '网站', group: 'resource' },
   { key: 'certificate', label: '证书', group: 'resource' },
   { key: 'gateway', label: '网关', group: 'resource' },

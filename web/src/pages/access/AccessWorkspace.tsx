@@ -20,6 +20,7 @@ interface Term {
   protocol: string
   logo?: string
   os?: string
+  distro?: string
   initCwd?: string
   sessionId?: string
 }
@@ -193,7 +194,7 @@ export default function AccessWorkspace() {
       return list.map((g) => (g.id === gid ? withTerm(g, t) : g))
     })
   }
-  const openAsset = (a: Asset) => addTerm({ id: uid(), assetId: a.id, name: a.name, protocol: a.protocol, logo: a.logo, os: a.os })
+  const openAsset = (a: Asset) => addTerm({ id: uid(), assetId: a.id, name: a.name, protocol: a.protocol, logo: a.logo, os: a.os, distro: a.distro })
 
   // Ctrl/⌘+K 打开命令面板
   useEffect(() => {

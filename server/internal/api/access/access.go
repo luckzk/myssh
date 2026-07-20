@@ -279,7 +279,8 @@ func (h *Handler) localTerminalGate(u *model.User, a *model.Asset) (string, bool
 	return "", true
 }
 
-// detectOS 另开 exec 通道探测目标系统家族（linux/macos/windows），写入 asset.os。失败静默。
+// detectOS 另开 exec 通道探测目标系统家族（linux/macos/windows）与 Linux 发行版（ubuntu/alpine…），
+// 写入 asset.os / asset.distro，用于系统图标。失败静默；仅在值变化时落库。
 func (h *Handler) detectOS(live *liveSession, assetID string) {
 	if live == nil || live.conn == nil {
 		return
@@ -301,7 +302,27 @@ func (h *Handler) detectOS(live *liveSession, assetID string) {
 	if family == "" {
 		return
 	}
-	h.store.DB.Model(&model.Asset{}).Where("id = ? AND os <> ?", assetID, family).Update("os", family)
+	// Linux 发行版：读 /etc/os-release 的 ID 字段（busybox/sed 均可）。
+	distro := ""
+	if family == "linux" {
+		if d, e := live.conn.Exec("sed -n 's/^ID=//p' /etc/os-release 2>/dev/null | head -n1"); e == nil {
+			distro = strings.ToLower(strings.Trim(strings.TrimSpace(d), "\"'"))
+		}
+	}
+	var a model.Asset
+	if err := h.store.DB.Select("os", "distro").First(&a, "id = ?", assetID).Error; err != nil {
+		return
+	}
+	updates := map[string]any{}
+	if a.OS != family {
+		updates["os"] = family
+	}
+	if distro != "" && a.Distro != distro {
+		updates["distro"] = distro
+	}
+	if len(updates) > 0 {
+		h.store.DB.Model(&model.Asset{}).Where("id = ?", assetID).Updates(updates)
+	}
 }
 
 // listAccountSessions 返回当前用户仍存活（可恢复）的会话，供「恢复会话」。

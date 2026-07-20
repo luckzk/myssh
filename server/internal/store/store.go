@@ -3,6 +3,8 @@ package store
 import (
 	"errors"
 	"log/slog"
+	"os"
+	"time"
 
 	"github.com/dushixiang/next-terminal-clone/server/internal/config"
 	"github.com/dushixiang/next-terminal-clone/server/internal/model"
@@ -22,6 +24,7 @@ func Open(cfg config.Config) (*Store, error) {
 	var dialector gorm.Dialector
 	switch cfg.DBDriver {
 	case "sqlite":
+		applyStagedRestore(cfg.DBDSN, cfg.Recordings) // 备份恢复：启动时若有暂存文件则先交换
 		dialector = sqlite.Open(cfg.DBDSN)
 	default:
 		return nil, errors.New("unsupported db driver: " + cfg.DBDriver)
@@ -62,6 +65,7 @@ func (s *Store) migrate() error {
 		&model.Certificate{}, &model.GatewayGroup{}, &model.SshGateway{},
 		&model.AgentGateway{}, &model.AgentGatewayToken{},
 		&model.Setting{}, &model.Backup{},
+		&model.BackupDestination{}, &model.BackupJob{},
 	)
 }
 
@@ -81,6 +85,25 @@ func (s *Store) seed(cfg config.Config) error {
 			}
 		}
 		slog.Info("seeded role", "id", roleID, "menus", len(model.MenuKeys))
+	} else {
+		// 自愈：补齐后续新增的菜单 key（如 backup），避免只在首次播种时授权而老库看不到新菜单。
+		var existing []string
+		s.DB.Model(&model.RoleMenu{}).Where("role_id = ?", roleID).Pluck("menu_key", &existing)
+		have := make(map[string]bool, len(existing))
+		for _, k := range existing {
+			have[k] = true
+		}
+		added := 0
+		for _, key := range model.MenuKeys {
+			if !have[key] {
+				if err := s.DB.Create(&model.RoleMenu{RoleID: roleID, MenuKey: key, Checked: true}).Error; err == nil {
+					added++
+				}
+			}
+		}
+		if added > 0 {
+			slog.Info("backfilled admin menus", "role", roleID, "added", added)
+		}
 	}
 
 	// 默认普通用户角色：仅基础菜单（浏览+连接授权资产），新建 type=user 用户自动归入。
@@ -162,3 +185,35 @@ func parseCreds(s string) (string, string) {
 	}
 	return s, ""
 }
+
+// applyStagedRestore 若存在恢复暂存文件（<db>.restore / <rec>.restore），在打开 DB 前交换生效。
+// 现有 DB/录像先改名为 .pre-restore-<ts> 保底，避免误操作丢数据。
+func applyStagedRestore(dbDSN, recDir string) {
+	ts := time.Now().Format("20060102-150405")
+	if rest := dbDSN + ".restore"; fileExists(rest) {
+		if fileExists(dbDSN) {
+			_ = os.Rename(dbDSN, dbDSN+".pre-restore-"+ts)
+		}
+		// 清掉旧 DB 的 WAL/SHM，避免与恢复进来的独立 DB 冲突
+		_ = os.Remove(dbDSN + "-wal")
+		_ = os.Remove(dbDSN + "-shm")
+		if err := os.Rename(rest, dbDSN); err != nil {
+			slog.Error("restore: swap db failed", "err", err)
+		} else {
+			slog.Info("restore: db restored from backup", "db", dbDSN)
+		}
+	}
+	if recRest := recDir + ".restore"; dirExists(recRest) {
+		if dirExists(recDir) {
+			_ = os.Rename(recDir, recDir+".pre-restore-"+ts)
+		}
+		if err := os.Rename(recRest, recDir); err != nil {
+			slog.Error("restore: swap recordings failed", "err", err)
+		} else {
+			slog.Info("restore: recordings restored from backup", "dir", recDir)
+		}
+	}
+}
+
+func fileExists(p string) bool { fi, err := os.Stat(p); return err == nil && !fi.IsDir() }
+func dirExists(p string) bool  { fi, err := os.Stat(p); return err == nil && fi.IsDir() }

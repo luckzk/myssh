@@ -55,7 +55,8 @@ type Asset struct {
 	Cipher      string `json:"cipher"`
 	Kex         string `json:"kex"`
 	Tags        string `gorm:"column:tags" json:"-"` // 内部以逗号分隔存储
-	OS          string `json:"os"`
+	OS          string `json:"os"`     // 系统家族：linux | macos | windows
+	Distro      string `json:"distro"` // 发行版 id：ubuntu | debian | centos | alpine ...
 	GroupID     string `json:"groupId"`
 	Sort        string `json:"sort"`
 	CreatedAt   int64  `json:"createdAt"`
